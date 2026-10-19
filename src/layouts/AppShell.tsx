@@ -1,7 +1,8 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from '../components/navigation/Sidebar';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Calendar, Activity } from 'lucide-react';
+import { LogOut, Calendar, Activity, Menu } from 'lucide-react';
+import { useState } from 'react';
 
 const TITLES: Record<string, { title: string; subtitle: string }> = {
   '/': { title: 'Laboratory Dashboard', subtitle: 'Overview of visits, specimens, testing queue & revenue' },
@@ -26,6 +27,7 @@ export default function AppShell() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const pageMeta = TITLES[location.pathname] ?? { title: 'Pathology LIS', subtitle: 'Diagnostic Laboratory System' };
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'short',
@@ -35,14 +37,22 @@ export default function AppShell() {
   });
 
   return (
-    <div id="app-shell" className="flex h-screen w-screen overflow-hidden bg-slate-100 text-slate-800">
-      <Sidebar />
+    <div id="app-shell" className="flex min-h-screen w-full overflow-hidden bg-slate-100 text-slate-800">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      {sidebarOpen && (
+        <button type="button" className="fixed inset-0 z-30 bg-slate-950/50 md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close navigation overlay" />
+      )}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header Bar */}
-        <header id="app-header" className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 shadow-2xs">
-          <div className="min-w-0">
+        <header id="app-header" className="min-h-16 bg-white border-b border-slate-200 px-3 sm:px-6 py-3 flex items-center justify-between gap-3 shrink-0 shadow-2xs">
+          <div className="min-w-0 flex items-center gap-2">
+            <button type="button" onClick={() => setSidebarOpen(true)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 md:hidden" aria-label="Open navigation">
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="min-w-0">
             <h1 className="text-lg font-bold text-slate-900 tracking-tight truncate">{pageMeta.title}</h1>
             <p className="text-xs text-slate-500 truncate hidden sm:block">{pageMeta.subtitle}</p>
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
@@ -78,8 +88,8 @@ export default function AppShell() {
         </header>
 
         {/* Main Content Area */}
-        <main id="main-content-scroll" className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-7xl mx-auto">
+        <main id="main-content-scroll" className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6">
+          <div className="max-w-7xl mx-auto min-w-0">
             <Outlet />
           </div>
         </main>

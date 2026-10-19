@@ -51,24 +51,24 @@ export default function Patients() {
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
+    <div className="min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
           <Users className="w-5 h-5 text-blue-600" />
           <h1 className="text-lg font-bold text-slate-900">Patients Master</h1>
         </div>
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by Lab ID, name, or mobile..."
-            className="pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg w-72"
+            className="pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg w-full sm:w-72"
           />
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-slate-500 text-xs uppercase">
             <tr>
@@ -115,7 +115,7 @@ export default function Patients() {
 
       {editing && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl border border-slate-200 p-6 w-full max-w-lg grid grid-cols-[120px_1fr] gap-3 items-center">
+          <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 w-full max-w-lg grid grid-cols-[120px_1fr] gap-3 items-center">
             <h2 className="col-span-2 text-base font-bold text-slate-900 mb-2">Edit Patient — {editing.mrn}</h2>
             <label className="text-sm text-slate-700">Name</label>
             <input

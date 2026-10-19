@@ -366,7 +366,7 @@ export default function NewVisit() {
         <div className="lg:col-span-2 space-y-6">
           {/* Section 1: Patient Demographics & Registration (Patho One Direct Workflow) */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
                 <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                   <UserPlus className="w-4 h-4 text-blue-600" />
@@ -376,7 +376,7 @@ export default function NewVisit() {
                   Direct billing entry: Register new walk-in patient or search returning patient.
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
                   onClick={() => setShowPatientList(true)}

@@ -47,18 +47,31 @@ const ICON_MAP: Record<string, LucideIcon> = {
   '/exit': LogOut,
 };
 
-export default function Sidebar() {
+interface SidebarProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export default function Sidebar({ open, onClose }: SidebarProps) {
   const { user } = useAuth();
   const visibleItems = NAV_ITEMS.filter((item) => !user || item.roles.includes(user.role));
 
   return (
-    <aside id="app-sidebar" className="w-64 bg-slate-900 text-slate-200 flex flex-col shrink-0 border-r border-slate-800 select-none">
+    <aside
+      id="app-sidebar"
+      className={`fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] h-screen bg-slate-900 text-slate-200 flex flex-col border-r border-slate-800 select-none transform transition-transform duration-200 md:relative md:inset-auto md:z-auto md:w-64 md:translate-x-0 md:h-screen ${
+        open ? 'translate-x-0' : '-translate-x-full'
+      }`}
+    >
       {/* Brand Header */}
-      <div className="p-5 border-b border-slate-800">
+      <div className="p-4 sm:p-5 border-b border-slate-800">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-black text-sm shadow-md">
             P1
           </div>
+          <button type="button" onClick={onClose} className="ml-auto rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white md:hidden" aria-label="Close navigation">
+            ×
+          </button>
           <div>
             <h1 className="font-bold text-white text-base tracking-tight leading-none">Patho One</h1>
             <span className="text-[11px] font-medium text-slate-400">Pathology LIS Suite</span>
@@ -77,12 +90,13 @@ export default function Sidebar() {
               to={item.to}
               end={item.to === '/'}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm md:text-xs font-semibold transition-all duration-150 ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
                 }`
               }
+              onClick={onClose}
             >
               <Icon className="w-4 h-4 shrink-0" />
               <span>{item.label}</span>
