@@ -17,6 +17,7 @@ const TITLES: Record<string, { title: string; subtitle: string }> = {
   '/inventory': { title: 'Reagents & Consumables Inventory', subtitle: 'Track vacutainer tubes, chemicals, diluents, stock levels and reorder alerts' },
   '/branches': { title: 'Branch Management', subtitle: 'Configure multi-branch diagnostic network locations' },
   '/methods': { title: 'Method Master', subtitle: 'Configure laboratory test methods and interpretations' },
+  '/set-formula': { title: 'Set Test Formula', subtitle: 'Configure parameter formulas and decimal formatting using ID row references' },
   '/about': { title: 'About Patho One', subtitle: 'Pathology Laboratory Management System' },
   '/exit': { title: 'Exit', subtitle: 'Close the laboratory application session' },
 };

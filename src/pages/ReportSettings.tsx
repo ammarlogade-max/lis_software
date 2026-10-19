@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { pageSetupDb, patientsDb, reportSettingsDb, storageDb, toolsDb } from '../lib/db';
 import { Settings2, KeyRound, Mail, FolderOutput, DatabaseBackup, Undo2 } from 'lucide-react';
 
@@ -31,6 +31,7 @@ interface Settings {
   test_title_alignment: Align;
   font_color: string;
   abnormal_red_enabled: boolean;
+  font_styles: Record<string, { size: number; weight: 'normal' | 'bold'; color: string }>;
 }
 
 interface PageSetup {
@@ -49,13 +50,45 @@ interface ToolsInfo {
 }
 
 const SUB_TABS = ['Report Header', 'Fonts Style', 'Page Setup', 'Tools'] as const;
+const LEGACY_PRINT_FLAGS = [
+  'header',
+  'patient_id',
+  'sample_date',
+  'sample_time',
+  'received_date',
+  'received_time',
+  'reporting_date',
+  'registration_number',
+  'collection_centre',
+  'page_number',
+  'barcode',
+  'qr_code',
+  'uhid',
+  'header_line',
+  'footer_line',
+  'report_end_line',
+  'investigations_note',
+] as const;
 
 // Combines Patho One's "Report Header" upload screen, "Fonts Style" screen,
 // "Report Page Setup" screen, and the relevant half of the "Tools" menu
 // (Email Info, Exported PDF Files Location, Backup, Recover Deleted Patient
 // Entry — Change Password is its own page, linked from the Tools tab).
 export default function ReportSettings() {
-  const [subTab, setSubTab] = useState<(typeof SUB_TABS)[number]>('Report Header');
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const requestedTab = searchParams.get('tab');
+  const pathTab: Record<string, (typeof SUB_TABS)[number]> = {
+    '/page-setup': 'Page Setup',
+    '/email-settings': 'Tools',
+    '/pdf-export': 'Tools',
+    '/backup': 'Tools',
+    '/recover-deleted-patients': 'Tools',
+  };
+  const initialTab = pathTab[location.pathname] || (SUB_TABS.includes(requestedTab as (typeof SUB_TABS)[number])
+    ? requestedTab as (typeof SUB_TABS)[number]
+    : 'Report Header');
+  const [subTab, setSubTab] = useState<(typeof SUB_TABS)[number]>(initialTab);
   const [form, setForm] = useState<Settings | null>(null);
   const [pageSetup, setPageSetup] = useState<PageSetup | null>(null);
   const [tools, setTools] = useState<ToolsInfo | null>(null);
@@ -65,8 +98,16 @@ export default function ReportSettings() {
 
   useEffect(() => {
     Promise.all([reportSettingsDb.get(), pageSetupDb.get(), toolsDb.getSettings(), patientsDb.listDeleted()]).then(([settings, setup, toolSettings, deleted]) => {
-      setForm(settings as Settings);
-      setPageSetup(setup);
+      setForm({
+        ...(settings as Settings),
+        font_styles: (settings as Settings).font_styles || {},
+      });
+      setPageSetup({
+        ...setup,
+        print_flags: Object.fromEntries(
+          LEGACY_PRINT_FLAGS.map((flag) => [flag, setup.print_flags?.[flag] ?? true])
+        ),
+      });
       setTools({ ...toolSettings, email_password: '' });
       setDeletedPatients(deleted);
     });
@@ -252,6 +293,54 @@ export default function ReportSettings() {
 
       {subTab === 'Fonts Style' && (
         <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+          <div>
+            <h2 className="font-semibold text-slate-900">Report font controls</h2>
+            <p className="text-xs text-slate-500 mt-1">These controls apply independently to each report section.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[
+              ['lab_name', 'Lab name'],
+              ['address', 'Address'],
+              ['test_title', 'Test title'],
+              ['test_name', 'Test name'],
+              ['result', 'Result'],
+              ['unit', 'Unit'],
+              ['normal_values', 'Normal values'],
+            ].map(([key, label]) => {
+              const value = form.font_styles[key] || { size: 12, weight: 'normal' as const, color: '#1e293b' };
+              return (
+                <div key={key} className="border border-slate-200 rounded-lg p-3">
+                  <label className="block text-xs font-semibold text-slate-700 mb-2">{label}</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number" min="8" max="32" value={value.size}
+                      onChange={(e) => setForm({ ...form, font_styles: { ...form.font_styles, [key]: { ...value, size: Number(e.target.value) } } })}
+                      className="w-20 border border-slate-300 rounded px-2 py-1.5 text-sm"
+                    />
+                    <select
+                      value={value.weight}
+                      onChange={(e) => setForm({ ...form, font_styles: { ...form.font_styles, [key]: { ...value, weight: e.target.value as 'normal' | 'bold' } } })}
+                      className="border border-slate-300 rounded px-2 py-1.5 text-sm"
+                    >
+                      <option value="normal">Regular</option>
+                      <option value="bold">Bold</option>
+                    </select>
+                    <input
+                      type="color" value={value.color}
+                      onChange={(e) => setForm({ ...form, font_styles: { ...form.font_styles, [key]: { ...value, color: e.target.value } } })}
+                      className="h-8 w-10"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <button onClick={saveSettings} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold">Save font styles</button>
+        </div>
+      )}
+
+      {subTab === 'Fonts Style' && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
           <div className="grid grid-cols-3 gap-4">
             <AlignPicker label="Lab Name Alignment" value={form.lab_name_alignment} onChange={(v) => setForm({ ...form, lab_name_alignment: v })} />
             <AlignPicker label="Address Alignment" value={form.address_alignment} onChange={(v) => setForm({ ...form, address_alignment: v })} />
@@ -323,7 +412,7 @@ export default function ReportSettings() {
           <div>
             <label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">Test Report Print Setting</label>
             <div className="grid grid-cols-3 gap-x-4 gap-y-2">
-              {Object.keys(pageSetup.print_flags).map((key) => (
+              {LEGACY_PRINT_FLAGS.map((key) => (
                 <label key={key} className="flex items-center gap-2 text-xs text-slate-700">
                   <input
                     type="checkbox"
@@ -360,6 +449,12 @@ export default function ReportSettings() {
       {subTab === 'Tools' && (
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <div className="flex flex-wrap gap-2 mb-4">
+              <Link to="/email-settings" className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-700">E-Mail Information screen</Link>
+              <Link to="/pdf-export" className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-700">PDF Export screen</Link>
+              <Link to="/backup" className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-700">Backup screen</Link>
+              <Link to="/recover-deleted-patients" className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-700">Recovery screen</Link>
+            </div>
             <Link to="/change-password" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600">
               <KeyRound className="w-4 h-4" /> Change Password
             </Link>

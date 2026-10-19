@@ -15,7 +15,21 @@ import {
   Plus,
 } from 'lucide-react';
 
-type Analyzer = { id: string; name: string; serial_port: string; baud_rate: number; is_active: boolean };
+type Analyzer = {
+  id: string;
+  name: string;
+  serial_port: string;
+  baud_rate: number;
+  connection_type?: 'serial' | 'tcp';
+  interface_type?: 'serial' | 'tcp';
+  tcp_host?: string | null;
+  tcp_port?: number | null;
+  protocol?: 'ASTM' | 'HL7';
+  barcode_symbology?: string;
+  check_digit_enabled?: boolean;
+  ignore_flag_enabled?: boolean;
+  is_active: boolean;
+};
 type TestGroup = { id: string; display_name: string; parameters: { id: string; name: string }[] };
 type Mapping = { id: string; analyzer_id: string; external_test_code: string; parameter_id: string };
 
@@ -50,6 +64,14 @@ export default function Analyzers() {
   const [name, setName] = useState('');
   const [port, setPort] = useState('COM1');
   const [baud, setBaud] = useState('9600');
+  const [interfaceType, setInterfaceType] = useState<'serial' | 'tcp'>('serial');
+  const [tcpHost, setTcpHost] = useState('');
+  const [tcpPort, setTcpPort] = useState('4148');
+  const [protocol, setProtocol] = useState<'ASTM' | 'HL7'>('ASTM');
+  const [barcodeSymbology, setBarcodeSymbology] = useState('Code 128');
+  const [checkDigit, setCheckDigit] = useState(false);
+  const [ignoreFlag, setIgnoreFlag] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
 
   const [mapAnalyzer, setMapAnalyzer] = useState('');
   const [mapCode, setMapCode] = useState('');
@@ -71,7 +93,17 @@ export default function Analyzers() {
       setAnalyzers(anaList || []);
       setGroups(grpList as unknown as TestGroup[]);
       setMappings(mapList || []);
-      setConnectedPorts((anaList || []).map((item: any) => ({ port: item.serial_port || item.tcp_host || 'Not configured', analyzer: item.name, baud: item.baud_rate, status: item.is_active ? 'Configured' : 'Inactive', parity: 'None', data_bits: 8, stop_bits: 1 })));
+      setConnectedPorts((anaList || []).map((item: any) => ({
+        port: item.interface_type === 'tcp' || item.connection_type === 'tcp'
+          ? `${item.tcp_host || 'Not configured'}:${item.tcp_port || ''}`
+          : item.serial_port || 'Not configured',
+        analyzer: item.name,
+        baud: item.baud_rate,
+        status: item.is_active ? 'Configured' : 'Inactive',
+        parity: 'None',
+        data_bits: 8,
+        stop_bits: 1,
+      })));
       setLogs((logList || []).map((item: any) => ({ ...item, analyzer: item.analyzer?.name || '', timestamp: item.created_at })));
     } catch (error) {
       console.error('Unable to load analyzer data', error);
@@ -86,10 +118,35 @@ export default function Analyzers() {
 
   async function addAnalyzer(e: FormEvent) {
     e.preventDefault();
-    await analyzersDb.create({ name, serial_port: port, baud_rate: Number(baud), connection_type: 'serial', protocol: 'ASTM', is_active: true });
+    setConfigError(null);
+    if (interfaceType === 'tcp' && (!tcpHost.trim() || !Number(tcpPort))) {
+      setConfigError('TCP analyzers require a host and valid port.');
+      return;
+    }
+    await analyzersDb.create({
+      name,
+      serial_port: interfaceType === 'serial' ? port.trim() : null,
+      baud_rate: Number(baud),
+      connection_type: interfaceType,
+      interface_type: interfaceType,
+      tcp_host: interfaceType === 'tcp' ? tcpHost.trim() : null,
+      tcp_port: interfaceType === 'tcp' ? Number(tcpPort) : null,
+      protocol,
+      barcode_symbology: barcodeSymbology,
+      check_digit_enabled: checkDigit,
+      ignore_flag_enabled: ignoreFlag,
+      is_active: true,
+    });
     setName('');
     setPort('COM1');
     setBaud('9600');
+    setInterfaceType('serial');
+    setTcpHost('');
+    setTcpPort('4148');
+    setProtocol('ASTM');
+    setBarcodeSymbology('Code 128');
+    setCheckDigit(false);
+    setIgnoreFlag(false);
     await load();
   }
 
@@ -430,13 +487,24 @@ export default function Analyzers() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Serial Port *</label>
+                  <label className="text-xs font-semibold text-slate-700">Interface *</label>
+                  <select
+                    value={interfaceType}
+                    onChange={(e) => setInterfaceType(e.target.value as 'serial' | 'tcp')}
+                    className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white"
+                  >
+                    <option value="serial">Serial / COM</option>
+                    <option value="tcp">TCP/IP</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700">{interfaceType === 'tcp' ? 'TCP Host' : 'Serial Port *'}</label>
                   <input
-                    placeholder="COM1"
-                    required
+                    placeholder={interfaceType === 'tcp' ? '192.168.1.20' : 'COM1'}
+                    required={interfaceType === 'serial'}
                     className="w-full text-xs font-mono font-bold border border-slate-300 rounded-lg px-3 py-2"
-                    value={port}
-                    onChange={(e) => setPort(e.target.value)}
+                    value={interfaceType === 'tcp' ? tcpHost : port}
+                    onChange={(e) => (interfaceType === 'tcp' ? setTcpHost(e.target.value) : setPort(e.target.value))}
                   />
                 </div>
                 <div className="space-y-1">
@@ -454,6 +522,53 @@ export default function Analyzers() {
                   </select>
                 </div>
               </div>
+
+              {interfaceType === 'tcp' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700">TCP Port *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="65535"
+                    value={tcpPort}
+                    onChange={(e) => setTcpPort(e.target.value)}
+                    className="w-full text-xs font-mono border border-slate-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700">Protocol</label>
+                  <select value={protocol} onChange={(e) => setProtocol(e.target.value as 'ASTM' | 'HL7')} className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white">
+                    <option>ASTM</option>
+                    <option>HL7</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700">Barcode Symbology</label>
+                  <select value={barcodeSymbology} onChange={(e) => setBarcodeSymbology(e.target.value)} className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white">
+                    <option>Interleaved 2 of 5</option>
+                    <option>Code 39</option>
+                    <option>Code 128</option>
+                    <option>Codabar</option>
+                    <option>ISBT 128</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-4 text-xs">
+                <label className="inline-flex items-center gap-2">
+                  <input type="checkbox" checked={checkDigit} onChange={(e) => setCheckDigit(e.target.checked)} />
+                  Check digit
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input type="checkbox" checked={ignoreFlag} onChange={(e) => setIgnoreFlag(e.target.checked)} />
+                  Ignore flag
+                </label>
+              </div>
+
+              {configError && <p className="text-xs text-rose-600">{configError}</p>}
 
               <button
                 type="submit"

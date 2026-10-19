@@ -20,6 +20,7 @@ export const NAV_ITEMS: { label: string; to: string; roles: string[] }[] = [
   { label: 'Branches', to: '/branches', roles: ['admin'] },
   { label: 'Change Password', to: '/change-password', roles: ['admin', 'front_desk', 'lab_technician', 'pathologist', 'accountant'] },
   { label: 'Method Master', to: '/methods', roles: ['admin', 'lab_technician'] },
+  { label: 'Set Formula', to: '/set-formula', roles: ['admin', 'lab_technician'] },
   { label: 'About', to: '/about', roles: ['admin', 'front_desk', 'lab_technician', 'pathologist', 'accountant'] },
   { label: 'Exit', to: '/exit', roles: ['admin', 'front_desk', 'lab_technician', 'pathologist', 'accountant'] },
 ];

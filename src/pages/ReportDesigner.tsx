@@ -79,6 +79,7 @@ interface ReportSettings {
   logo_path: string | null;
   qr_code_path: string | null;
   report_template_path?: string | null;
+  font_styles?: Record<string, { size: number; weight: 'normal' | 'bold'; color: string }>;
 }
 
 export default function ReportDesigner() {
@@ -100,6 +101,10 @@ export default function ReportDesigner() {
   const [reportTemplateType, setReportTemplateType] = useState<'image' | 'pdf' | null>(null);
   const [uploadingTemplate, setUploadingTemplate] = useState(false);
   const [templateError, setTemplateError] = useState<string | null>(null);
+  const [viewerZoom, setViewerZoom] = useState(100);
+  const [viewerPage, setViewerPage] = useState(1);
+  const [viewerSearch, setViewerSearch] = useState('');
+  const [searchMessage, setSearchMessage] = useState('');
 
   async function loadInitialData() {
     try {
@@ -405,6 +410,21 @@ export default function ReportDesigner() {
         </div>
       </div>
 
+      <div className="print:hidden flex flex-wrap items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
+        <span className="text-xs font-bold text-slate-600 mr-2">Report viewer</span>
+        <button type="button" disabled={viewerPage <= 1} onClick={() => setViewerPage((page) => Math.max(1, page - 1))} className="px-2 py-1 text-xs border rounded disabled:opacity-40">Previous</button>
+        <span className="text-xs text-slate-600">Page {viewerPage} of 1</span>
+        <button type="button" disabled onClick={() => setViewerPage((page) => page + 1)} className="px-2 py-1 text-xs border rounded disabled:opacity-40">Next</button>
+        <button type="button" onClick={() => setViewerZoom((zoom) => Math.max(60, zoom - 10))} className="px-2 py-1 text-xs border rounded">−</button>
+        <span className="text-xs font-semibold w-12 text-center">{viewerZoom}%</span>
+        <button type="button" onClick={() => setViewerZoom((zoom) => Math.min(150, zoom + 10))} className="px-2 py-1 text-xs border rounded">+</button>
+        <button type="button" onClick={() => setViewerZoom(100)} className="px-2 py-1 text-xs border rounded">Page width</button>
+        <input value={viewerSearch} onChange={(e) => setViewerSearch(e.target.value)} placeholder="Find in report" className="ml-auto w-36 px-2 py-1 text-xs border rounded" />
+        <button type="button" onClick={() => setSearchMessage(viewerSearch && document.getElementById('diagnostic-report-sheet')?.innerText.toLowerCase().includes(viewerSearch.toLowerCase()) ? 'Found' : 'Not found')} className="px-2 py-1 text-xs border rounded">Find</button>
+        {searchMessage && <span className="text-xs text-slate-500">{searchMessage}</span>}
+        <button type="button" onClick={handlePrint} className="px-2 py-1 text-xs font-semibold text-blue-700 border border-blue-200 rounded">Print / Export</button>
+      </div>
+
       {/* The Printable A4 Sheet Simulator */}
       <div className="flex justify-center bg-slate-100 p-4 sm:p-8 rounded-xl border border-slate-200 shadow-inner overflow-x-auto print:bg-white print:p-0 print:border-none print:shadow-none">
         <div
@@ -413,6 +433,9 @@ export default function ReportDesigner() {
           style={{
             paddingTop: stationeryMode === 'preprinted' ? `${topMarginInch}in` : undefined,
             paddingBottom: stationeryMode === 'preprinted' ? `${bottomMarginInch}in` : undefined,
+            transform: `scale(${viewerZoom / 100})`,
+            transformOrigin: 'top center',
+            marginBottom: viewerZoom > 100 ? `${(viewerZoom - 100) * 2}px` : undefined,
           }}
         >
           {/* Section 1: Header (Shown ONLY if Plain Paper Mode) */}
@@ -424,13 +447,27 @@ export default function ReportDesigner() {
                     P1
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-slate-900 tracking-tight leading-none uppercase">
+                    <h2
+                      className="text-xl font-black tracking-tight leading-none uppercase"
+                      style={{
+                        fontSize: settings?.font_styles?.lab_name?.size,
+                        fontWeight: settings?.font_styles?.lab_name?.weight,
+                        color: settings?.font_styles?.lab_name?.color,
+                      }}
+                    >
                       {settings?.lab_name || 'Lab name not set — configure under Report Settings'}
                     </h2>
                     <p className="text-xs font-semibold text-blue-700 mt-0.5">
                       {settings?.registration_no ? `Reg. No: ${settings.registration_no}` : ''}
                     </p>
-                    <div className="text-[11px] text-slate-500 mt-1">
+                    <div
+                      className="text-[11px] mt-1"
+                      style={{
+                        fontSize: settings?.font_styles?.address?.size,
+                        fontWeight: settings?.font_styles?.address?.weight,
+                        color: settings?.font_styles?.address?.color,
+                      }}
+                    >
                       {settings?.address || 'Address not set'}
                       {settings?.phone ? ` | Tel: ${settings.phone}` : ''}
                     </div>

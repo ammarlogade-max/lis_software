@@ -32,12 +32,29 @@ type Patient = {
   title?: string;
   email?: string | null;
   address?: string | null;
+  patient_type?: string;
 };
 type Doctor = { id: string; salutation: string; name: string };
 type Centre = { id: string; name: string };
 type TestGroup = { id: string; display_name: string; rate: number };
 type PackageItem = { id: string; name: string; fee: number; test_group_ids: string[] };
 type Branch = { id: string; name: string };
+
+function formatForDateTimeLocal(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function toIsoOrNull(value: string): string | null {
+  if (!value.trim()) return null;
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt.toISOString();
+}
 
 export default function NewVisit() {
   const navigate = useNavigate();
@@ -50,6 +67,7 @@ export default function NewVisit() {
 
   // Direct Patient Details (Created directly on this page)
   const [patientTitle, setPatientTitle] = useState('Mr.');
+  const [patientType, setPatientType] = useState('Regular');
   const [patientFullName, setPatientFullName] = useState('');
   const [patientPhone, setPatientPhone] = useState('');
   const [patientAge, setPatientAge] = useState('');
@@ -57,6 +75,10 @@ export default function NewVisit() {
   const [patientGender, setPatientGender] = useState<'Male' | 'Female' | 'Other'>('Male');
   const [patientEmail, setPatientEmail] = useState('');
   const [patientAddress, setPatientAddress] = useState('');
+  const [collectionAt, setCollectionAt] = useState(() => formatForDateTimeLocal(new Date()));
+  const [receivedAt, setReceivedAt] = useState(() => formatForDateTimeLocal(new Date()));
+  const [reportingAt, setReportingAt] = useState(() => formatForDateTimeLocal(new Date()));
+  const [visitRemarks, setVisitRemarks] = useState('');
   const [fastingStatus, setFastingStatus] = useState('Unspecified');
 
   // Returning Patient Quick Lookup
@@ -83,6 +105,7 @@ export default function NewVisit() {
   const [saving, setSaving] = useState(false);
   const [savedOrder, setSavedOrder] = useState<{ lab_id: string; id: string; due: number; patient_name?: string; paid?: number } | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showPatientList, setShowPatientList] = useState(false);
   const [labName, setLabName] = useState('');
 
   useEffect(() => {
@@ -163,6 +186,7 @@ export default function NewVisit() {
     setSelectedExistingPatient(p);
     setPatientId(p.id);
     setPatientTitle(p.title || (p.gender === 'Female' ? 'Ms.' : 'Mr.'));
+    setPatientType(p.patient_type || 'Regular');
     setPatientFullName(p.full_name);
     setPatientPhone(p.phone || '');
     setPatientAge(p.age_years !== null && p.age_years !== undefined ? String(p.age_years) : '');
@@ -176,6 +200,7 @@ export default function NewVisit() {
     setSelectedExistingPatient(null);
     setPatientId('');
     setPatientTitle('Mr.');
+    setPatientType('Regular');
     setPatientFullName('');
     setPatientPhone('');
     setPatientAge('');
@@ -183,6 +208,11 @@ export default function NewVisit() {
     setPatientGender('Male');
     setPatientEmail('');
     setPatientAddress('');
+    const now = formatForDateTimeLocal(new Date());
+    setCollectionAt(now);
+    setReceivedAt(now);
+    setReportingAt(now);
+    setVisitRemarks('');
     setFastingStatus('Unspecified');
     setPatientSearch('');
   }
@@ -236,6 +266,7 @@ export default function NewVisit() {
       if (!selectedExistingPatient || !finalPatientId) {
         const createdPat = await patientsDb.create({
           title: patientTitle,
+          patient_type: patientType,
           full_name: finalPatientName,
           phone: patientPhone.trim() || null,
           gender: patientGender,
@@ -260,6 +291,10 @@ export default function NewVisit() {
           doctor_id: doctorId || null,
           centre_id: centreId || null,
           branch_id: branchId || null,
+          collection_at: toIsoOrNull(collectionAt),
+          received_at: toIsoOrNull(receivedAt),
+          reporting_at: toIsoOrNull(reportingAt),
+          remarks: visitRemarks.trim(),
           fasting_status: fastingStatus,
           priority,
           discount_percent: Number(discountPercent || 0),
@@ -342,6 +377,14 @@ export default function NewVisit() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPatientList(true)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 transition"
+                >
+                  <User className="w-3 h-3" />
+                  Patient List
+                </button>
                 {selectedExistingPatient ? (
                   <button
                     type="button"
@@ -524,6 +567,24 @@ export default function NewVisit() {
                       <option value="Years">Years</option>
                       <option value="Months">Months</option>
                       <option value="Days">Days</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-slate-600">Patient Type</label>
+                    <select
+                      id="patient-type-select"
+                      value={patientType}
+                      onChange={(e) => setPatientType(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
+                    >
+                      <option>Regular</option>
+                      <option>Emergency</option>
+                      <option>Corporate</option>
+                      <option>Home Collection</option>
+                      <option>Camp</option>
                     </select>
                   </div>
                 </div>
@@ -731,6 +792,52 @@ export default function NewVisit() {
                     <span>STAT (Emergency)</span>
                   </button>
                 </div>
+              </div>
+
+              {/* Row 4: Legacy PathoOne visit timing + remarks */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-slate-600">Collection Date & Time</label>
+                  <input
+                    id="collection-at-input"
+                    type="datetime-local"
+                    value={collectionAt}
+                    onChange={(e) => setCollectionAt(e.target.value)}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-slate-600">Received Date & Time</label>
+                  <input
+                    id="received-at-input"
+                    type="datetime-local"
+                    value={receivedAt}
+                    onChange={(e) => setReceivedAt(e.target.value)}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-slate-600">Reporting Date & Time</label>
+                  <input
+                    id="reporting-at-input"
+                    type="datetime-local"
+                    value={reportingAt}
+                    onChange={(e) => setReportingAt(e.target.value)}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1 pt-1">
+                <label className="text-[11px] font-medium text-slate-600">Remarks</label>
+                <textarea
+                  id="visit-remarks-input"
+                  rows={2}
+                  value={visitRemarks}
+                  onChange={(e) => setVisitRemarks(e.target.value)}
+                  placeholder="Optional visit notes..."
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
+                />
               </div>
             </div>
           </div>
@@ -947,11 +1054,57 @@ export default function NewVisit() {
               disabled={saving || !patientFullName.trim() || selectedTests.length === 0}
               className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {saving ? 'Processing Registration...' : 'Register Visit & Generate Receipt'}
+              {saving ? 'Processing Registration...' : 'Save / Next & Generate Receipt'}
             </button>
           </div>
         </div>
       </form>
+
+      {showPatientList && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h2 className="font-bold text-slate-900">Patient List</h2>
+                <p className="text-xs text-slate-500">Select a patient to return to registration.</p>
+              </div>
+              <button type="button" onClick={() => setShowPatientList(false)} className="text-xs px-3 py-1.5 rounded border border-slate-200">
+                Close
+              </button>
+            </div>
+            <div className="p-4 border-b border-slate-100">
+              <input
+                value={patientSearch}
+                onChange={(e) => setPatientSearch(e.target.value)}
+                placeholder="Search by name, MRN, or mobile..."
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="overflow-y-auto">
+              {(patientSearch.trim() ? filteredPatients : patients).map((patient) => (
+                <button
+                  key={patient.id}
+                  type="button"
+                  onClick={() => {
+                    handleSelectExistingPatient(patient);
+                    setShowPatientList(false);
+                  }}
+                  className="w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-blue-50 flex items-center justify-between"
+                >
+                  <span>
+                    <span className="font-semibold text-slate-900">{patient.title} {patient.full_name}</span>
+                    <span className="block text-xs text-slate-500">{patient.mrn} · {patient.gender} · {patient.phone || 'No phone'}</span>
+                  </span>
+                  <span className="text-xs font-semibold text-blue-600">Select</span>
+                </button>
+              ))}
+              {(patientSearch.trim() ? filteredPatients : patients).length === 0 && (
+                <p className="p-8 text-center text-sm text-slate-400">No patients found.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Booking Receipt / Thermal Slip Modal */}
       {showReceiptModal && savedOrder && (

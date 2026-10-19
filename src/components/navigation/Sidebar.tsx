@@ -42,6 +42,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   '/branches': GitBranch,
   '/change-password': KeyRound,
   '/methods': ClipboardList,
+  '/set-formula': ClipboardList,
   '/about': Info,
   '/exit': LogOut,
 };

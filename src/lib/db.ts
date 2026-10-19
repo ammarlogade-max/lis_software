@@ -108,6 +108,7 @@ export interface Patient {
   id: string;
   mrn: string;
   title: string;
+  patient_type: string;
   full_name: string;
   gender: string;
   age_years: number | null;
@@ -192,6 +193,11 @@ export interface TestParameter {
   critical_high?: string;
   report_comment?: string;
   is_required?: boolean;
+  options?: string | null;
+  test_description?: string | null;
+  low_value?: string | null;
+  high_value?: string | null;
+  is_subtitle?: boolean;
   sort_order: number;
 }
 
@@ -320,6 +326,10 @@ export interface NewOrderInput {
   doctor_id: string | null;
   centre_id: string | null;
   branch_id: string | null;
+  collection_at: string | null;
+  received_at: string | null;
+  reporting_at: string | null;
+  remarks: string;
   fasting_status: string;
   priority: string;
   discount_percent: number;
@@ -358,6 +368,10 @@ export const ordersDb = {
         doctor_id: input.doctor_id,
         centre_id: input.centre_id,
         branch_id: input.branch_id,
+        collection_at: input.collection_at,
+        received_at: input.received_at,
+        reporting_at: input.reporting_at,
+        remarks: input.remarks,
         fasting_status: input.fasting_status,
         priority: input.priority,
         discount_percent: input.discount_percent,
@@ -406,7 +420,7 @@ export const ordersDb = {
     const { data: order, error } = await supabase
       .from('orders')
       .select(
-        `id, lab_id, specimen_id, status, priority, created_at,
+        `id, lab_id, specimen_id, status, priority, created_at, collection_at, received_at, reporting_at, remarks,
          patients(id, mrn, title, full_name, phone, email, gender, age_years),
          doctor:doctors(salutation, name, degree),
          centre:collection_centres(name),
@@ -500,6 +514,7 @@ export interface ReportSettings {
   qr_code_path: string | null;
   footer_image_path: string | null;
   report_template_path?: string | null;
+  font_styles?: Record<string, { size: number; weight: 'normal' | 'bold'; color: string }>;
 }
 
 export const reportSettingsDb = {

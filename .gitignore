@@ -1,0 +1,11 @@
+node_modules/
+dist/
+apps/desktop/dist/
+
+.env
+.env.*
+!.env.example
+apps/desktop/.env
+
+.vercel/
+.turbo/
