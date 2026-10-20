@@ -250,7 +250,30 @@ export const testGroupsDb = {
     const { error: delErr } = await supabase.from('test_parameters').delete().eq('test_group_id', testGroupId);
     if (delErr) throw new Error(delErr.message);
     if (params.length === 0) return;
-    const rows = params.map((p, i) => ({ ...p, id: undefined, test_group_id: testGroupId, sort_order: i }));
+    const rows = params.map((p, i) => ({
+      test_group_id: testGroupId,
+      name: p.name || '',
+      unit: p.unit || null,
+      default_value: p.default_value || null,
+      formula: p.formula || null,
+      decimal_format: p.decimal_format || null,
+      is_bold: p.is_bold === true,
+      normal_range_male: p.normal_range_male || null,
+      normal_range_female: p.normal_range_female || null,
+      normal_range_child_male: p.normal_range_child_male || null,
+      normal_range_child_female: p.normal_range_child_female || null,
+      analyzer_code: p.analyzer_code || '',
+      critical_low: p.critical_low || '',
+      critical_high: p.critical_high || '',
+      report_comment: p.report_comment || '',
+      is_required: p.is_required !== false,
+      options: p.options || null,
+      test_description: p.test_description || null,
+      low_value: p.low_value || null,
+      high_value: p.high_value || null,
+      is_subtitle: p.is_subtitle === true,
+      sort_order: i,
+    }));
     const { error: insErr } = await supabase.from('test_parameters').insert(rows);
     if (insErr) throw new Error(insErr.message);
   },

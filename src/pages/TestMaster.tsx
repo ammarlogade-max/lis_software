@@ -79,6 +79,7 @@ export default function TestMaster() {
   const [importSourceId, setImportSourceId] = useState('');
   const [importSelection, setImportSelection] = useState<Set<string>>(new Set());
   const [importMode, setImportMode] = useState<'append' | 'replace'>('append');
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   async function load() {
     const [loadedGroups, loadedMethods] = await Promise.all([testGroupsDb.listAll(), methodsDb.list()]);
@@ -200,6 +201,7 @@ export default function TestMaster() {
   async function handleApply() {
     if (!draft) return;
     setSaving(true);
+    setSaveError(null);
     try {
       if (draft.id.startsWith('new-')) {
         const created = await testGroupsDb.createGroup({
@@ -239,6 +241,8 @@ export default function TestMaster() {
         );
       }
       await load();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Could not save the test group.');
     } finally {
       setSaving(false);
     }
@@ -540,6 +544,11 @@ export default function TestMaster() {
               </button>
             </div>
           </div>
+          {saveError && (
+            <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+              Could not save this test group: {saveError}
+            </div>
+          )}
         </div>
       )}
       {!draft && (
