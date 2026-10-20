@@ -253,8 +253,8 @@ export default function TestMaster() {
   const filtered = groups.filter((group) => group.display_name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="flex gap-4 h-full">
-      <div className="w-72 shrink-0 bg-white rounded-xl border border-slate-200 flex flex-col">
+    <div className="grid grid-cols-1 lg:grid-cols-[18rem_minmax(0,1fr)] gap-4 min-h-[calc(100vh-8rem)] items-start">
+      <div className="w-full lg:sticky lg:top-2 bg-white rounded-xl border border-slate-200 flex flex-col min-h-0 lg:max-h-[calc(100vh-9rem)]">
         <div className="p-3 border-b border-slate-100">
           <div className="relative">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
@@ -266,7 +266,7 @@ export default function TestMaster() {
             />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="overflow-y-auto min-h-0 max-h-72 lg:max-h-none lg:flex-1">
           {filtered.map((group) => (
             <button
               key={group.id}
@@ -281,14 +281,14 @@ export default function TestMaster() {
         </div>
         <button
           onClick={startNewGroup}
-          className="m-3 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg bg-amber-500 text-white"
+          className="m-3 shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-bold rounded-lg bg-amber-500 hover:bg-amber-600 text-white shadow-sm transition-colors"
         >
           <Plus className="w-3.5 h-3.5" /> Add New Group
         </button>
       </div>
 
       {draft && (
-        <div className="flex-1 bg-white rounded-xl border border-slate-200 p-5 overflow-y-auto">
+        <div className="min-w-0 bg-white rounded-xl border border-slate-200 p-3 sm:p-5 overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-blue-600" />
@@ -540,6 +540,11 @@ export default function TestMaster() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {!draft && (
+        <div className="hidden lg:flex min-h-[32rem] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+          Select a test group to edit it, or use <strong className="mx-1 text-slate-700">Add New Group</strong> to create one.
         </div>
       )}
 
