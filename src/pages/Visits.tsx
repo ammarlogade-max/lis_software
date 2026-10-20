@@ -574,17 +574,16 @@ export default function Visits() {
                   {sendingWhatsApp ? 'Preparing...' : 'Share via WhatsApp'}
                 </button>
 
-                {detail.patient_email && (
-                  <button
-                    id="email-share-btn"
-                    onClick={shareViaEmail}
-                    disabled={sendingEmail}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold shadow-xs disabled:opacity-50 transition"
-                  >
-                    <Mail className="w-3.5 h-3.5" />
-                    {sendingEmail ? 'Sending...' : 'Email Report'}
-                  </button>
-                )}
+                <button
+                  id="email-share-btn"
+                  onClick={shareViaEmail}
+                  disabled={sendingEmail || !detail.patient_email}
+                  title={!detail.patient_email ? 'Add an email address to this patient record first' : 'Send the report by email'}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold shadow-xs disabled:opacity-50 transition"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  {sendingEmail ? 'Sending...' : 'Send via Email'}
+                </button>
               </div>
             </div>
 
