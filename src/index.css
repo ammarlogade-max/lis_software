@@ -14,8 +14,13 @@
 
   @media print {
     .report-test-page-break {
-      break-before: page;
-      page-break-before: always;
+      break-before: page !important;
+      page-break-before: always !important;
+    }
+
+    #diagnostic-report-sheet {
+      transform: none !important;
+      margin-bottom: 0 !important;
     }
   }
 

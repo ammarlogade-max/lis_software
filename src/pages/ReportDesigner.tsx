@@ -555,7 +555,7 @@ export default function ReportDesigner() {
           )}
 
           {/* Section 3: Diagnostic Report Body */}
-          <div className="flex-1 space-y-6">
+          <div className="space-y-6">
             {orderDetail?.order_tests.map((test) => (
               <div key={test.id} className={`space-y-2 ${test.start_new_page ? 'report-test-page-break' : ''}`}>
                 {/* Department / Test Header */}
