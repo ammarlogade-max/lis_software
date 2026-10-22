@@ -442,17 +442,12 @@ export default function ReportDesigner() {
           {/* Section 1: Header (Shown ONLY if Plain Paper Mode) */}
           {stationeryMode === 'plain' ? (
             <div className="border-b-2 border-slate-900 pb-4 mb-4">
+              {settings?.logo_path ? (
+                <img src={settings.logo_path} alt="Laboratory report header" className="block h-auto w-full object-contain object-center" />
+              ) : (
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  {settings?.logo_path ? (
-                    <img
-                      src={settings.logo_path}
-                      alt="Laboratory header"
-                      className="max-w-[15rem] max-h-20 rounded-lg object-contain object-left border border-slate-200"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 rounded-lg bg-blue-700 text-white font-black text-xl flex items-center justify-center shadow-xs">P1</div>
-                  )}
+                  <div className="w-12 h-12 rounded-lg bg-blue-700 text-white font-black text-xl flex items-center justify-center shadow-xs">P1</div>
                   <div>
                     <h2
                       className="text-xl font-black tracking-tight leading-none uppercase"
@@ -492,6 +487,7 @@ export default function ReportDesigner() {
                   </div>
                 )}
               </div>
+              )}
             </div>
           ) : (
             <div className="border-b border-dashed border-purple-300 pb-1 mb-3 text-center print:hidden">
@@ -642,7 +638,7 @@ export default function ReportDesigner() {
 
           {/* Section 5: Pathologist Signatures Block — up to 3, driven by Report Settings.
               Blank signatory slots are skipped rather than filled with placeholder names. */}
-          {showSignatures &&
+          {!settings?.footer_image_path && showSignatures &&
             (() => {
               const slots = [
                 { name: settings?.signatory_name, degree: settings?.signatory_degree, title: settings?.signatory_title },
@@ -686,11 +682,11 @@ export default function ReportDesigner() {
                 <img
                   src={settings.footer_image_path}
                   alt="Laboratory footer"
-                  className="mx-auto mb-2 block h-auto max-h-16 w-full object-contain object-center"
+                  className="mx-auto mb-2 block h-auto w-full object-contain object-center"
                 />
               )}
-              {settings?.footer_note ||
-                'This report is authorized electronically and does not require a physical handwritten signature. Pathological findings are for clinical correlation only.'}
+              {!settings?.footer_image_path && (settings?.footer_note ||
+                'This report is authorized electronically and does not require a physical handwritten signature. Pathological findings are for clinical correlation only.')}
             </div>
           ) : (
             <div className="border-t border-dashed border-purple-300 pt-1 mt-3 text-center print:hidden">

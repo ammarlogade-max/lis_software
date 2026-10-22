@@ -63,32 +63,33 @@ export async function generateReportPdf(data: ReportPdfData, settings: ReportSet
   const logo = await loadImageDataUrl(settings.logo_path);
   const footerImage = await loadImageDataUrl(settings.footer_image_path);
 
-  // --- Header ---
+  // --- Header stationery ---
   if (logo) {
     const properties = doc.getImageProperties(logo);
     const maxWidth = pageWidth - marginX * 2;
-    const maxHeight = 28;
+    const maxHeight = 40;
     const scale = Math.min(maxWidth / properties.width, maxHeight / properties.height);
     const width = properties.width * scale;
     const height = properties.height * scale;
-    doc.addImage(logo, 'PNG', marginX, y - 8, width, height, undefined, 'FAST');
-    y += Math.max(0, height - 12);
-  }
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text(settings.lab_name || 'Lab name not configured', pageWidth / 2, y, { align: 'center' });
-  y += 6;
+    doc.addImage(logo, 'PNG', (pageWidth - width) / 2, y, width, height, undefined, 'FAST');
+    y += height + 4;
+  } else {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text(settings.lab_name || 'Lab name not configured', pageWidth / 2, y, { align: 'center' });
+    y += 6;
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  const contactLine = [settings.address, settings.phone ? `Tel: ${settings.phone}` : ''].filter(Boolean).join('  |  ');
-  if (contactLine) {
-    doc.text(contactLine, pageWidth / 2, y, { align: 'center' });
-    y += 5;
-  }
-  if (settings.registration_no) {
-    doc.text(`Reg. No: ${settings.registration_no}`, pageWidth / 2, y, { align: 'center' });
-    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const contactLine = [settings.address, settings.phone ? `Tel: ${settings.phone}` : ''].filter(Boolean).join('  |  ');
+    if (contactLine) {
+      doc.text(contactLine, pageWidth / 2, y, { align: 'center' });
+      y += 5;
+    }
+    if (settings.registration_no) {
+      doc.text(`Reg. No: ${settings.registration_no}`, pageWidth / 2, y, { align: 'center' });
+      y += 5;
+    }
   }
 
   doc.setLineWidth(0.4);
@@ -184,7 +185,7 @@ export async function generateReportPdf(data: ReportPdfData, settings: ReportSet
   }
 
   // --- Footer note ---
-  if (settings.footer_note) {
+  if (settings.footer_note && !footerImage) {
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(7);
     doc.setTextColor(100, 100, 100);
@@ -193,11 +194,11 @@ export async function generateReportPdf(data: ReportPdfData, settings: ReportSet
   if (footerImage) {
     const properties = doc.getImageProperties(footerImage);
     const maxWidth = pageWidth - marginX * 2;
-    const maxHeight = 18;
+    const maxHeight = 40;
     const scale = Math.min(maxWidth / properties.width, maxHeight / properties.height);
     const width = properties.width * scale;
     const height = properties.height * scale;
-    doc.addImage(footerImage, 'PNG', (pageWidth - width) / 2, 282, width, height, undefined, 'FAST');
+    doc.addImage(footerImage, 'PNG', (pageWidth - width) / 2, 270, width, height, undefined, 'FAST');
   }
 
   return doc.output('blob');
