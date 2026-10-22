@@ -77,6 +77,7 @@ interface ReportSettings {
   signatory3_degree: string;
   signatory3_title: string;
   logo_path: string | null;
+  footer_image_path: string | null;
   qr_code_path: string | null;
   report_template_path?: string | null;
   font_styles?: Record<string, { size: number; weight: 'normal' | 'bold'; color: string }>;
@@ -443,9 +444,11 @@ export default function ReportDesigner() {
             <div className="border-b-2 border-slate-900 pb-4 mb-4">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-lg bg-blue-700 text-white font-black text-xl flex items-center justify-center shadow-xs">
-                    P1
-                  </div>
+                  {settings?.logo_path ? (
+                    <img src={settings.logo_path} alt="Laboratory header" className="w-12 h-12 rounded-lg object-contain border border-slate-200" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg bg-blue-700 text-white font-black text-xl flex items-center justify-center shadow-xs">P1</div>
+                  )}
                   <div>
                     <h2
                       className="text-xl font-black tracking-tight leading-none uppercase"
@@ -675,6 +678,9 @@ export default function ReportDesigner() {
           {/* Section 6: Footer Disclaimer (Shown ONLY in Plain Paper Mode) */}
           {stationeryMode === 'plain' ? (
             <div className="mt-4 pt-2 border-t border-slate-200 text-[9px] text-slate-400 text-center leading-tight">
+              {settings?.footer_image_path && (
+                <img src={settings.footer_image_path} alt="Laboratory footer" className="mx-auto mb-2 max-h-12 max-w-full object-contain" />
+              )}
               {settings?.footer_note ||
                 'This report is authorized electronically and does not require a physical handwritten signature. Pathological findings are for clinical correlation only.'}
             </div>

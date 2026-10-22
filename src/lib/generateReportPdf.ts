@@ -32,6 +32,19 @@ export interface ReportPdfData {
   reported_at: string;
 }
 
+async function loadImageDataUrl(url: string | null): Promise<string | null> {
+  if (!url) return null;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not load report image (${response.status}).`);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+    reader.onerror = () => reject(new Error('Could not read report image.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
 function isAbnormal(value: string, range: string | null): boolean {
   if (!value || !range) return false;
   const numeric = parseFloat(value);
@@ -47,11 +60,14 @@ export async function generateReportPdf(data: ReportPdfData, settings: ReportSet
   const pageWidth = doc.internal.pageSize.getWidth();
   const marginX = 14;
   let y = 16;
+  const logo = await loadImageDataUrl(settings.logo_path);
+  const footerImage = await loadImageDataUrl(settings.footer_image_path);
 
   // --- Header ---
+  if (logo) doc.addImage(logo, 'PNG', marginX, y - 8, 32, 18, undefined, 'FAST');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
-  doc.text(settings.lab_name || 'Lab name not configured', pageWidth / 2, y, { align: 'center' });
+  doc.text(settings.lab_name || 'Lab name not configured', logo ? pageWidth / 2 + 12 : pageWidth / 2, y, { align: 'center' });
   y += 6;
 
   doc.setFont('helvetica', 'normal');
@@ -165,6 +181,7 @@ export async function generateReportPdf(data: ReportPdfData, settings: ReportSet
     doc.setTextColor(100, 100, 100);
     doc.text(settings.footer_note, pageWidth / 2, 290, { align: 'center', maxWidth: pageWidth - marginX * 2 });
   }
+  if (footerImage) doc.addImage(footerImage, 'PNG', marginX, 282, pageWidth - marginX * 2, 8, undefined, 'FAST');
 
   return doc.output('blob');
 }
