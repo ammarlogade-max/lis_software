@@ -64,10 +64,19 @@ export async function generateReportPdf(data: ReportPdfData, settings: ReportSet
   const footerImage = await loadImageDataUrl(settings.footer_image_path);
 
   // --- Header ---
-  if (logo) doc.addImage(logo, 'PNG', marginX, y - 8, 32, 18, undefined, 'FAST');
+  if (logo) {
+    const properties = doc.getImageProperties(logo);
+    const maxWidth = pageWidth - marginX * 2;
+    const maxHeight = 28;
+    const scale = Math.min(maxWidth / properties.width, maxHeight / properties.height);
+    const width = properties.width * scale;
+    const height = properties.height * scale;
+    doc.addImage(logo, 'PNG', marginX, y - 8, width, height, undefined, 'FAST');
+    y += Math.max(0, height - 12);
+  }
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
-  doc.text(settings.lab_name || 'Lab name not configured', logo ? pageWidth / 2 + 12 : pageWidth / 2, y, { align: 'center' });
+  doc.text(settings.lab_name || 'Lab name not configured', pageWidth / 2, y, { align: 'center' });
   y += 6;
 
   doc.setFont('helvetica', 'normal');
@@ -181,7 +190,15 @@ export async function generateReportPdf(data: ReportPdfData, settings: ReportSet
     doc.setTextColor(100, 100, 100);
     doc.text(settings.footer_note, pageWidth / 2, 290, { align: 'center', maxWidth: pageWidth - marginX * 2 });
   }
-  if (footerImage) doc.addImage(footerImage, 'PNG', marginX, 282, pageWidth - marginX * 2, 8, undefined, 'FAST');
+  if (footerImage) {
+    const properties = doc.getImageProperties(footerImage);
+    const maxWidth = pageWidth - marginX * 2;
+    const maxHeight = 18;
+    const scale = Math.min(maxWidth / properties.width, maxHeight / properties.height);
+    const width = properties.width * scale;
+    const height = properties.height * scale;
+    doc.addImage(footerImage, 'PNG', (pageWidth - width) / 2, 282, width, height, undefined, 'FAST');
+  }
 
   return doc.output('blob');
 }

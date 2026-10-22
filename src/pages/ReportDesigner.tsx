@@ -445,7 +445,11 @@ export default function ReportDesigner() {
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   {settings?.logo_path ? (
-                    <img src={settings.logo_path} alt="Laboratory header" className="w-12 h-12 rounded-lg object-contain border border-slate-200" />
+                    <img
+                      src={settings.logo_path}
+                      alt="Laboratory header"
+                      className="max-w-[15rem] max-h-20 rounded-lg object-contain object-left border border-slate-200"
+                    />
                   ) : (
                     <div className="w-12 h-12 rounded-lg bg-blue-700 text-white font-black text-xl flex items-center justify-center shadow-xs">P1</div>
                   )}
@@ -679,7 +683,11 @@ export default function ReportDesigner() {
           {stationeryMode === 'plain' ? (
             <div className="mt-4 pt-2 border-t border-slate-200 text-[9px] text-slate-400 text-center leading-tight">
               {settings?.footer_image_path && (
-                <img src={settings.footer_image_path} alt="Laboratory footer" className="mx-auto mb-2 max-h-12 max-w-full object-contain" />
+                <img
+                  src={settings.footer_image_path}
+                  alt="Laboratory footer"
+                  className="mx-auto mb-2 block h-auto max-h-16 w-full object-contain object-center"
+                />
               )}
               {settings?.footer_note ||
                 'This report is authorized electronically and does not require a physical handwritten signature. Pathological findings are for clinical correlation only.'}
