@@ -215,7 +215,6 @@ export interface TestGroup {
   sample_volume?: string;
   container_type?: string;
   report_sequence?: number;
-  start_new_page?: boolean;
   is_active: boolean;
   test_parameters?: TestParameter[];
 }
@@ -379,6 +378,7 @@ export interface NewOrderInput {
   paid: number;
   payment_mode: string;
   test_group_ids: string[];
+  test_group_page_breaks?: Record<string, boolean>;
 }
 
 async function nextLabId(): Promise<string> {
@@ -429,7 +429,11 @@ export const ordersDb = {
     if (error) throw new Error(error.message);
 
     if (input.test_group_ids.length > 0) {
-      const rows = input.test_group_ids.map((tgId) => ({ order_id: order.id, test_group_id: tgId }));
+      const rows = input.test_group_ids.map((tgId) => ({
+        order_id: order.id,
+        test_group_id: tgId,
+        start_new_page: input.test_group_page_breaks?.[tgId] === true,
+      }));
       const { error: otgErr } = await supabase.from('order_test_groups').insert(rows);
       if (otgErr) throw new Error(otgErr.message);
     }
@@ -467,7 +471,7 @@ export const ordersDb = {
          doctor:doctors(salutation, name, degree),
          centre:collection_centres(name),
          branch:branches(name),
-         order_test_groups(id, status, test_groups(id, display_name, report_title, start_new_page,
+         order_test_groups(id, status, start_new_page, test_groups(id, display_name, report_title,
            test_parameters(id, name, unit, formula, decimal_format, is_bold,
              normal_range_male, normal_range_female, normal_range_child_male, normal_range_child_female, sort_order)))`
       )
@@ -498,7 +502,7 @@ export const ordersDb = {
       order_tests: ((order as any).order_test_groups || []).map((g: any) => ({
         id: g.id,
         test_group_name: g.test_groups?.display_name || '',
-        start_new_page: g.test_groups?.start_new_page === true,
+        start_new_page: g.start_new_page === true,
         status: g.status,
         parameters: (g.test_groups?.test_parameters || [])
           .sort((a: any, b: any) => a.sort_order - b.sort_order)
