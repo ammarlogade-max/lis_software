@@ -20,6 +20,7 @@ export interface ReportPdfParameter {
 
 export interface ReportPdfTestGroup {
   test_group_name: string;
+  start_new_page?: boolean;
   parameters: ReportPdfParameter[];
 }
 
@@ -110,7 +111,10 @@ export async function generateReportPdf(data: ReportPdfData, settings: ReportSet
 
   // --- Results, grouped by test group ---
   for (const group of data.order_tests) {
-    if (y > 260) {
+    if (group.start_new_page && y > 16) {
+      doc.addPage();
+      y = 16;
+    } else if (y > 260) {
       doc.addPage();
       y = 16;
     }

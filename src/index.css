@@ -12,6 +12,13 @@
     margin: 0;
   }
 
+  @media print {
+    .report-test-page-break {
+      break-before: page;
+      page-break-before: always;
+    }
+  }
+
   body {
     overflow-x: hidden;
   }

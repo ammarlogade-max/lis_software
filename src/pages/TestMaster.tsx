@@ -38,6 +38,7 @@ interface TestGroup {
   sample_volume?: string;
   container_type?: string;
   report_sequence?: number;
+  start_new_page?: boolean;
   is_active: boolean;
   parameters: Parameter[];
 }
@@ -114,6 +115,7 @@ export default function TestMaster() {
       sample_volume: '',
       container_type: '',
       report_sequence: 0,
+      start_new_page: false,
       is_active: true,
       parameters: [emptyParam()],
     };
@@ -215,6 +217,7 @@ export default function TestMaster() {
           sample_volume: draft.sample_volume || '',
           container_type: draft.container_type || '',
           report_sequence: draft.report_sequence || 0,
+          start_new_page: draft.start_new_page === true,
           is_active: true,
         });
         await testGroupsDb.replaceParameters(
@@ -233,6 +236,7 @@ export default function TestMaster() {
           sample_volume: draft.sample_volume || '',
           container_type: draft.container_type || '',
           report_sequence: draft.report_sequence || 0,
+          start_new_page: draft.start_new_page === true,
           is_active: draft.is_active,
         });
         await testGroupsDb.replaceParameters(
@@ -378,6 +382,15 @@ export default function TestMaster() {
                 onChange={(e) => setDraft({ ...draft, report_sequence: Number(e.target.value) })}
               />
             </div>
+            <label className="flex items-center gap-2 text-sm text-slate-700 self-end pb-2">
+              <input
+                type="checkbox"
+                checked={draft.start_new_page === true}
+                onChange={(e) => setDraft({ ...draft, start_new_page: e.target.checked })}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              Start this test group on a new report page
+            </label>
           </div>
 
           <div className="border border-slate-200 rounded-lg overflow-x-auto mb-3">

@@ -215,6 +215,7 @@ export interface TestGroup {
   sample_volume?: string;
   container_type?: string;
   report_sequence?: number;
+  start_new_page?: boolean;
   is_active: boolean;
   test_parameters?: TestParameter[];
 }
@@ -466,7 +467,7 @@ export const ordersDb = {
          doctor:doctors(salutation, name, degree),
          centre:collection_centres(name),
          branch:branches(name),
-         order_test_groups(id, status, test_groups(id, display_name, report_title,
+         order_test_groups(id, status, test_groups(id, display_name, report_title, start_new_page,
            test_parameters(id, name, unit, formula, decimal_format, is_bold,
              normal_range_male, normal_range_female, normal_range_child_male, normal_range_child_female, sort_order)))`
       )
@@ -497,6 +498,7 @@ export const ordersDb = {
       order_tests: ((order as any).order_test_groups || []).map((g: any) => ({
         id: g.id,
         test_group_name: g.test_groups?.display_name || '',
+        start_new_page: g.test_groups?.start_new_page === true,
         status: g.status,
         parameters: (g.test_groups?.test_parameters || [])
           .sort((a: any, b: any) => a.sort_order - b.sort_order)

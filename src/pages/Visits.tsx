@@ -49,6 +49,7 @@ type Parameter = {
 type OrderTestDetail = {
   id: string;
   test_group_name: string;
+  start_new_page?: boolean;
   status: string;
   parameters: Parameter[];
 };
@@ -272,6 +273,7 @@ export default function Visits() {
         age_years: detail.patient_age_years,
         order_tests: detail.order_tests.map((ot) => ({
           test_group_name: ot.test_group_name,
+          start_new_page: ot.start_new_page,
           parameters: ot.parameters
             .filter((p) => !p.is_bold_header || true)
             .map((p) => ({

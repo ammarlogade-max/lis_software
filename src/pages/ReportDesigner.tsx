@@ -45,6 +45,7 @@ interface OrderDetail {
   order_tests: {
     id: string;
     test_group_name: string;
+    start_new_page?: boolean;
     department: string;
     method: string;
     status: string;
@@ -556,7 +557,7 @@ export default function ReportDesigner() {
           {/* Section 3: Diagnostic Report Body */}
           <div className="flex-1 space-y-6">
             {orderDetail?.order_tests.map((test) => (
-              <div key={test.id} className="space-y-2">
+              <div key={test.id} className={`space-y-2 ${test.start_new_page ? 'report-test-page-break' : ''}`}>
                 {/* Department / Test Header */}
                 <div className="border-b-2 border-slate-800 pb-1 flex items-baseline justify-between">
                   <h3 className="font-black text-sm uppercase tracking-wide text-slate-900">
