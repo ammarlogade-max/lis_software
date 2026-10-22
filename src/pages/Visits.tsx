@@ -117,6 +117,7 @@ export default function Visits() {
   const [collecting, setCollecting] = useState(false);
   const [printingLabel, setPrintingLabel] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [resultError, setResultError] = useState<string | null>(null);
 
   async function loadOrders() {
     const data = await ordersDb.list();
@@ -235,13 +236,14 @@ export default function Visits() {
   async function saveResults(orderTestId: string) {
     if (!detail) return;
     setSavingTestId(orderTestId);
+    setResultError(null);
     try {
       const ot = detail.order_tests.find((t) => t.id === orderTestId);
       if (!ot) return;
       const { data: userData } = await supabase.auth.getUser();
       const values: Record<string, string> = {};
       ot.parameters
-        .filter((p) => !p.is_bold_header && draftValues[p.id] !== undefined && draftValues[p.id] !== '')
+        .filter((p) => !p.is_bold_header && draftValues[p.id] !== undefined)
         .forEach((p) => {
           values[p.id] = draftValues[p.id];
         });
@@ -252,6 +254,8 @@ export default function Visits() {
 
       if (activeOrderId) await openOrder(activeOrderId);
       await loadOrders();
+    } catch (error) {
+      setResultError(error instanceof Error ? error.message : 'Could not save results.');
     } finally {
       setSavingTestId(null);
     }
@@ -594,6 +598,11 @@ export default function Visits() {
                 }`}
               >
                 {shareError || shareSuccess}
+              </div>
+            )}
+            {resultError && (
+              <div className="text-xs font-medium px-3 py-2 rounded-lg border text-rose-700 bg-rose-50 border-rose-200">
+                Could not save results: {resultError}
               </div>
             )}
 

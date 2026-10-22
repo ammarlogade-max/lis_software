@@ -107,14 +107,19 @@ export default function NewVisit() {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showPatientList, setShowPatientList] = useState(false);
   const [labName, setLabName] = useState('');
+  const [pageError, setPageError] = useState<string | null>(null);
 
   useEffect(() => {
-    patientsDb.list().then(setPatients).catch(console.error);
-    doctorsDb.list().then(setDoctors).catch(console.error);
-    centresDb.list().then(setCentres).catch(console.error);
-    testGroupsDb.listActive().then((gs) => setGroups(gs as unknown as TestGroup[])).catch(console.error);
-    packagesDb.list().then((ps) => setPackages(ps as unknown as PackageItem[])).catch(console.error);
-    branchesDb.list().then(setBranches).catch(console.error);
+    Promise.all([
+      patientsDb.list().then(setPatients),
+      doctorsDb.list().then(setDoctors),
+      centresDb.list().then(setCentres),
+      testGroupsDb.listActive().then((gs) => setGroups(gs as unknown as TestGroup[])),
+      packagesDb.list().then((ps) => setPackages(ps as unknown as PackageItem[])),
+      branchesDb.list().then(setBranches),
+    ]).catch((error) => {
+      setPageError(error instanceof Error ? error.message : 'Could not load visit data.');
+    });
     reportSettingsDb
       .get()
       .then((s) => setLabName(s.lab_name || ''))
@@ -321,7 +326,7 @@ export default function NewVisit() {
       setDiscountPercent('0');
       setPaid('0');
     } catch (err) {
-      console.error('Error registering visit:', err);
+      setPageError(err instanceof Error ? err.message : 'Could not register the visit.');
     } finally {
       setSaving(false);
     }
@@ -329,6 +334,11 @@ export default function NewVisit() {
 
   return (
     <div id="new-visit-page" className="space-y-6">
+      {pageError && (
+        <div role="alert" className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
+          {pageError}
+        </div>
+      )}
       {/* Success Notification Banner */}
       {savedOrder && (
         <div id="order-success-banner" className="bg-emerald-50 border border-emerald-300 rounded-xl p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">

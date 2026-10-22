@@ -14,11 +14,16 @@ export default function SetFormula() {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    const loaded = (await testGroupsDb.listAll()) as unknown as FormulaGroup[];
-    setGroups(loaded);
-    if (!selectedId && loaded.length > 0) setSelectedId(loaded[0].id);
+    try {
+      const loaded = (await testGroupsDb.listAll()) as unknown as FormulaGroup[];
+      setGroups(loaded);
+      if (!selectedId && loaded.length > 0) setSelectedId(loaded[0].id);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not load test groups.');
+    }
   }
 
   useEffect(() => {
@@ -44,6 +49,7 @@ export default function SetFormula() {
   async function applyFormulas() {
     if (!activeGroup) return;
     setSaving(true);
+    setError(null);
     try {
       await testGroupsDb.replaceParameters(
         activeGroup.id,
@@ -53,6 +59,8 @@ export default function SetFormula() {
         }))
       );
       await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not save formulas.');
     } finally {
       setSaving(false);
     }
@@ -89,6 +97,7 @@ export default function SetFormula() {
       </aside>
 
       <section className="flex-1 bg-white rounded-xl border border-slate-200 p-5 overflow-y-auto">
+        {error && <div role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
         {!activeGroup ? (
           <p className="text-sm text-slate-500">Select a test group to configure formulas.</p>
         ) : (

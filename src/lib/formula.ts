@@ -39,7 +39,9 @@ function evalArithmetic(expr: string): number {
       const op = peek();
       i++;
       const rhs = parseFactor();
+      if (op === '/' && rhs === 0) throw new Error('Division by zero');
       val = op === '*' ? val * rhs : val / rhs;
+      if (!Number.isFinite(val)) throw new Error('Formula result is not finite');
     }
     return val;
   }
@@ -79,24 +81,34 @@ export interface FormulaParam {
  */
 export function computeFormulas(params: FormulaParam[], values: Record<string, string>): Record<string, string> {
   const next = { ...values };
-  for (const param of params) {
-    if (!param.formula || !param.formula.trim()) continue;
-    let expr = param.formula;
-    let hasAllInputs = true;
-    expr = expr.replace(/ID(\d+)/g, (_match, posStr) => {
-      const pos = parseInt(posStr, 10) - 1;
-      const refParam = params[pos];
-      const raw = refParam ? next[refParam.id] : undefined;
-      const num = raw !== undefined && raw !== '' ? parseFloat(String(raw).replace(/,/g, '')) : NaN;
-      if (Number.isNaN(num)) hasAllInputs = false;
-      return String(Number.isNaN(num) ? 0 : num);
-    });
-    if (!hasAllInputs) continue;
-    try {
-      next[param.id] = roundToFormat(evalArithmetic(expr), param.decimal_format);
-    } catch {
-      // Malformed formula — leave whatever value was there.
+  // Resolve chained formulas regardless of whether a formula references a
+  // parameter above or below it in the table.
+  for (let pass = 0; pass < params.length; pass += 1) {
+    let changed = false;
+    for (const param of params) {
+      if (!param.formula || !param.formula.trim()) continue;
+      let expr = param.formula;
+      let hasAllInputs = true;
+      expr = expr.replace(/ID(\d+)/g, (_match, posStr) => {
+        const pos = parseInt(posStr, 10) - 1;
+        const refParam = params[pos];
+        const raw = refParam ? next[refParam.id] : undefined;
+        const num = raw !== undefined && raw !== '' ? parseFloat(String(raw).replace(/,/g, '')) : NaN;
+        if (Number.isNaN(num)) hasAllInputs = false;
+        return String(Number.isNaN(num) ? 0 : num);
+      });
+      if (!hasAllInputs) continue;
+      try {
+        const calculated = roundToFormat(evalArithmetic(expr), param.decimal_format);
+        if (next[param.id] !== calculated) {
+          next[param.id] = calculated;
+          changed = true;
+        }
+      } catch {
+        // Malformed formulas remain visible for correction in Test Master.
+      }
     }
+    if (!changed) break;
   }
   return next;
 }
