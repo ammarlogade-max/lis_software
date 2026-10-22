@@ -8,6 +8,8 @@
 
 import { supabase } from './supabaseClient';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function must<T>(data: T | null, error: { message: string } | null): T {
   if (error) throw new Error(error.message);
   if (data === null) throw new Error('Expected a row but got none.');
@@ -243,14 +245,13 @@ export const testGroupsDb = {
     const { data, error } = await supabase.from('test_groups').update(input).eq('id', id).select().single();
     return must(data as TestGroup, error);
   },
-  // Replaces all parameter rows for a group in one call — simplest way to
-  // keep the grid editor (add/remove/reorder rows freely) in sync without
-  // diffing row-by-row on every save.
+  // Updates existing rows in place so historical order_results keep their
+  // foreign-key references. New editor rows are inserted with fresh IDs.
+  // Rows removed from the editor are retained when historical results refer
+  // to them; deleting those rows would destroy report history.
   async replaceParameters(testGroupId: string, params: TestParameter[]): Promise<void> {
-    const { error: delErr } = await supabase.from('test_parameters').delete().eq('test_group_id', testGroupId);
-    if (delErr) throw new Error(delErr.message);
-    if (params.length === 0) return;
-    const rows = params.map((p, i) => ({
+    const toRow = (p: TestParameter, i: number, includeId: boolean) => ({
+      ...(includeId ? { id: p.id } : {}),
       test_group_id: testGroupId,
       name: p.name || '',
       unit: p.unit || null,
@@ -273,8 +274,25 @@ export const testGroupsDb = {
       high_value: p.high_value || null,
       is_subtitle: p.is_subtitle === true,
       sort_order: i,
-    }));
-    const { error: insErr } = await supabase.from('test_parameters').insert(rows);
+    });
+    const newRows = params
+      .map((p, i) => ({ parameter: p, index: i }))
+      .filter(({ parameter }) => !UUID_RE.test(parameter.id || ''))
+      .map(({ parameter, index }) => toRow(parameter, index, false));
+
+    for (const { parameter, index } of params
+      .map((parameter, index) => ({ parameter, index }))
+      .filter(({ parameter }) => UUID_RE.test(parameter.id || ''))) {
+      const { error } = await supabase
+        .from('test_parameters')
+        .update(toRow(parameter, index, false))
+        .eq('id', parameter.id || '')
+        .eq('test_group_id', testGroupId);
+      if (error) throw new Error(error.message);
+    }
+
+    if (newRows.length === 0) return;
+    const { error: insErr } = await supabase.from('test_parameters').insert(newRows);
     if (insErr) throw new Error(insErr.message);
   },
 };
