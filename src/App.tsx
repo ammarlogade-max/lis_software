@@ -23,6 +23,7 @@ import About from './pages/About';
 import Exit from './pages/Exit';
 import RequireRole from './components/RequireRole';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import InstallPrompt from './components/pwa/InstallPrompt';
 
 function RequireAuth() {
   const { user, loading } = useAuth();
@@ -72,6 +73,7 @@ export default function App() {
   return (
     <AuthProvider>
       <AppRoutes />
+      <InstallPrompt />
     </AuthProvider>
   );
 }
