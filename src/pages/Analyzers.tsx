@@ -60,6 +60,7 @@ export default function Analyzers() {
   const [mappings, setMappings] = useState<Mapping[]>([]);
   const [connectedPorts, setConnectedPorts] = useState<ConnectedPort[]>([]);
   const [logs, setLogs] = useState<SerialLog[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [name, setName] = useState('');
   const [port, setPort] = useState('COM1');
@@ -84,6 +85,7 @@ export default function Analyzers() {
 
   async function load() {
     try {
+      setLoadError(null);
       const [anaList, grpList, mapList, logList] = await Promise.all([
         analyzersDb.list(),
         testGroupsDb.listAll(),
@@ -91,7 +93,10 @@ export default function Analyzers() {
         analyzersDb.logs(),
       ]);
       setAnalyzers(anaList || []);
-      setGroups(grpList as unknown as TestGroup[]);
+      setGroups((grpList || []).map((group: any) => ({
+        ...group,
+        parameters: group.parameters || group.test_parameters || [],
+      })) as TestGroup[]);
       setMappings(mapList || []);
       setConnectedPorts((anaList || []).map((item: any) => ({
         port: item.interface_type === 'tcp' || item.connection_type === 'tcp'
@@ -107,6 +112,7 @@ export default function Analyzers() {
       setLogs((logList || []).map((item: any) => ({ ...item, analyzer: item.analyzer?.name || '', timestamp: item.created_at })));
     } catch (error) {
       console.error('Unable to load analyzer data', error);
+      setLoadError(error instanceof Error ? error.message : 'Unable to load analyzer data.');
     }
   }
 
@@ -179,6 +185,12 @@ export default function Analyzers() {
 
   return (
     <div id="analyzers-page" className="space-y-6">
+      {loadError && (
+        <div role="alert" className="flex items-start justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <span>Could not load analyzer data: {loadError}</span>
+          <button type="button" onClick={load} className="font-semibold underline">Retry</button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-3">
