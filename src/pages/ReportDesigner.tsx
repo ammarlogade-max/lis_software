@@ -471,7 +471,7 @@ export default function ReportDesigner() {
         >
           {/* Section 1: Header (Shown ONLY if Plain Paper Mode) */}
           {stationeryMode === 'plain' ? (
-            <div className="border-b-2 border-slate-900 pb-4 mb-4">
+            <div className="report-print-header border-b-2 border-slate-900 pb-2 mb-4">
               {settings?.logo_path ? (
                 <img src={settings.logo_path} alt="Laboratory report header" className="block h-auto w-full object-contain object-center" />
               ) : (
@@ -520,7 +520,7 @@ export default function ReportDesigner() {
               )}
             </div>
           ) : (
-            <div className="border-b border-dashed border-purple-300 pb-1 mb-3 text-center print:hidden">
+            <div className="report-print-header border-b border-dashed border-purple-300 pb-1 mb-3 text-center print:hidden">
               <span className="text-[10px] uppercase tracking-widest text-purple-700 font-bold bg-purple-50 px-3 py-0.5 rounded">
                 --- Pre-Printed Letterhead Header Margin Reserved ({topMarginInch} in) ---
               </span>
@@ -529,7 +529,7 @@ export default function ReportDesigner() {
 
           {/* Section 2: Patient Demographic & Visit Box */}
           {orderDetail && (
-            <div className="bg-slate-50/80 border border-slate-300 rounded-lg p-3 text-xs mb-4">
+            <div className="report-print-patient bg-slate-50/80 border border-slate-300 rounded-lg p-3 text-xs mb-4">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-2 gap-x-4">
                 <div>
                   <span className="text-slate-500 text-[10px] uppercase font-bold block">Patient Name:</span>
@@ -585,17 +585,17 @@ export default function ReportDesigner() {
 
           {/* Section 3: Diagnostic Report Body */}
           <div className="space-y-6">
-            {orderDetail?.order_tests.map((test) => (
+            {orderDetail?.order_tests.map((test, index) => (
               <section
                 key={test.id}
-                className={`space-y-2 ${pageBreaks[test.id] ? 'report-test-page-break' : ''}`}
-                style={pageBreaks[test.id] ? {
+                className={`space-y-2 ${index > 0 && pageBreaks[test.id] ? 'report-test-page-break' : ''}`}
+                style={index > 0 && pageBreaks[test.id] ? {
                   breakBefore: 'page',
                   pageBreakBefore: 'always',
                   pageBreakInside: 'avoid',
                 } : { pageBreakInside: 'avoid' }}
               >
-                {pageBreaks[test.id] && (
+                {index > 0 && pageBreaks[test.id] && (
                   <div className="report-page-break-preview" aria-label="This test group starts on a new printed page">
                     <span>New report page</span>
                   </div>
@@ -720,7 +720,7 @@ export default function ReportDesigner() {
 
           {/* Section 6: Footer Disclaimer (Shown ONLY in Plain Paper Mode) */}
           {stationeryMode === 'plain' ? (
-            <div className="mt-4 pt-2 border-t border-slate-200 text-[9px] text-slate-400 text-center leading-tight">
+            <div className="report-print-footer mt-4 pt-2 border-t border-slate-200 text-[9px] text-slate-400 text-center leading-tight">
               {settings?.footer_image_path && (
                 <img
                   src={settings.footer_image_path}
@@ -732,7 +732,7 @@ export default function ReportDesigner() {
                 'This report is authorized electronically and does not require a physical handwritten signature. Pathological findings are for clinical correlation only.')}
             </div>
           ) : (
-            <div className="border-t border-dashed border-purple-300 pt-1 mt-3 text-center print:hidden">
+            <div className="report-print-footer border-t border-dashed border-purple-300 pt-1 mt-3 text-center print:hidden">
               <span className="text-[10px] uppercase tracking-widest text-purple-700 font-bold bg-purple-50 px-3 py-0.5 rounded">
                 --- Pre-Printed Letterhead Footer Margin Reserved ({bottomMarginInch} in) ---
               </span>
