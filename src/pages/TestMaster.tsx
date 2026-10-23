@@ -250,8 +250,19 @@ export default function TestMaster() {
 
   async function handleDeactivate() {
     if (!draft || draft.id.startsWith('new-')) return;
-    await testGroupsDb.updateGroup(draft.id, { is_active: false });
-    await load();
+    const action = draft.is_active ? 'remove' : 'restore';
+    if (!window.confirm(
+      draft.is_active
+        ? `Remove "${draft.display_name}" from new visits? Existing patient reports will remain safe.`
+        : `Restore "${draft.display_name}" for new visits?`
+    )) return;
+    setSaveError(null);
+    try {
+      await testGroupsDb.updateGroup(draft.id, { is_active: !draft.is_active });
+      await load();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : `Could not ${action} this test group.`);
+    }
   }
 
   const filtered = groups.filter((group) => group.display_name.toLowerCase().includes(search.toLowerCase()));
@@ -529,9 +540,13 @@ export default function TestMaster() {
                 <button
                   type="button"
                   onClick={handleDeactivate}
-                  className="px-4 py-2 text-xs font-semibold rounded-lg border border-red-300 text-red-600"
+                  className={`px-4 py-2 text-xs font-semibold rounded-lg border ${
+                    draft.is_active
+                      ? 'border-red-300 text-red-600 hover:bg-red-50'
+                      : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
+                  }`}
                 >
-                  Deactivate Group
+                  {draft.is_active ? 'Remove from New Visits' : 'Restore Group'}
                 </button>
               )}
               <button
