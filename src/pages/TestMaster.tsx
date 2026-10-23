@@ -83,10 +83,15 @@ export default function TestMaster() {
 
   async function load() {
     const [loadedGroups, loadedMethods] = await Promise.all([testGroupsDb.listAll(), methodsDb.list()]);
-    const mapped = loadedGroups.map((group) => ({ ...group, parameters: group.test_parameters || [] })) as unknown as TestGroup[];
+    const mapped = loadedGroups
+      .filter((group) => group.is_active)
+      .map((group) => ({ ...group, parameters: group.test_parameters || [] })) as unknown as TestGroup[];
     setGroups(mapped);
     setMethods(loadedMethods);
-    if (!selectedId && mapped.length) {
+    if (selectedId && !mapped.some((group) => group.id === selectedId)) {
+      setSelectedId(null);
+      setDraft(null);
+    } else if (!selectedId && mapped.length) {
       selectGroup(mapped[0]);
     }
   }
@@ -248,20 +253,19 @@ export default function TestMaster() {
     }
   }
 
-  async function handleDeactivate(group: TestGroup | null = draft) {
-    if (!group || group.id.startsWith('new-')) return;
-    const action = group.is_active ? 'remove' : 'restore';
-    if (!window.confirm(
-      group.is_active
-        ? `Remove "${group.display_name}" from new visits? Existing patient reports will remain safe.`
-        : `Restore "${group.display_name}" for new visits?`
-    )) return;
+  async function handleDeleteGroup(group: TestGroup | null = draft) {
+    if (!group || group.id.startsWith('new-') || !group.is_active) return;
+    if (!window.confirm(`Delete "${group.display_name}" from Test Master? It will disappear from this list and new visits. Existing patient reports will remain safe.`)) return;
     setSaveError(null);
     try {
-      await testGroupsDb.updateGroup(group.id, { is_active: !group.is_active });
+      await testGroupsDb.updateGroup(group.id, { is_active: false });
+      if (selectedId === group.id) {
+        setSelectedId(null);
+        setDraft(null);
+      }
       await load();
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : `Could not ${action} this test group.`);
+      setSaveError(error instanceof Error ? error.message : 'Could not delete this test group.');
     }
   }
 
@@ -287,7 +291,7 @@ export default function TestMaster() {
               key={group.id}
               className={`flex items-center gap-1 border-b border-slate-50 ${
                 selectedId === group.id ? 'bg-blue-600 text-white font-semibold' : 'text-slate-700 hover:bg-slate-50'
-              } ${!group.is_active ? 'opacity-40 italic' : ''}`}
+              }`}
             >
               <button
                 type="button"
@@ -299,19 +303,13 @@ export default function TestMaster() {
               {!group.id.startsWith('new-') && (
                 <button
                   type="button"
-                  title={group.is_active ? 'Remove group from new visits' : 'Restore group'}
-                  aria-label={group.is_active ? `Remove ${group.display_name}` : `Restore ${group.display_name}`}
+                  title="Delete test group"
+                  aria-label={`Delete ${group.display_name}`}
                   onClick={() => {
                     selectGroup(group);
-                    void handleDeactivate(group);
+                    void handleDeleteGroup(group);
                   }}
-                  className={`mr-2 rounded p-1.5 ${
-                    selectedId === group.id
-                      ? 'text-white/80 hover:bg-white/20'
-                      : group.is_active
-                        ? 'text-rose-500 hover:bg-rose-50'
-                        : 'text-emerald-600 hover:bg-emerald-50'
-                  }`}
+                  className={`mr-2 rounded p-1.5 ${selectedId === group.id ? 'text-white/80 hover:bg-white/20' : 'text-rose-500 hover:bg-rose-50'}`}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -561,17 +559,13 @@ export default function TestMaster() {
               <code className="bg-slate-100 px-1 rounded">ID2</code>.
             </span>
             <div className="flex gap-2">
-              {!draft.id.startsWith('new-') && (
+              {!draft.id.startsWith('new-') && draft.is_active && (
                 <button
                   type="button"
-                  onClick={() => void handleDeactivate()}
-                  className={`px-4 py-2 text-xs font-semibold rounded-lg border ${
-                    draft.is_active
-                      ? 'border-red-300 text-red-600 hover:bg-red-50'
-                      : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
-                  }`}
+                  onClick={() => void handleDeleteGroup()}
+                  className="px-4 py-2 text-xs font-semibold rounded-lg border border-red-300 text-red-600 hover:bg-red-50"
                 >
-                  {draft.is_active ? 'Remove from New Visits' : 'Restore Group'}
+                  Delete Group
                 </button>
               )}
               <button
