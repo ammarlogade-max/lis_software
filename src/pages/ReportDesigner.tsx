@@ -457,10 +457,10 @@ export default function ReportDesigner() {
       </div>
 
       {/* The Printable A4 Sheet Simulator */}
-      <div className="flex justify-center bg-slate-100 p-4 sm:p-8 rounded-xl border border-slate-200 shadow-inner overflow-x-auto print:bg-white print:p-0 print:border-none print:shadow-none">
+      <div className="flex justify-center bg-slate-100 p-4 sm:p-8 rounded-xl border border-slate-200 shadow-inner overflow-x-auto print:block print:overflow-visible print:bg-white print:p-0 print:border-none print:shadow-none">
         <div
           id="diagnostic-report-sheet"
-          className="bg-white text-slate-900 w-[210mm] min-h-[297mm] shadow-2xl p-8 sm:p-10 flex flex-col justify-between print:shadow-none print:p-6 print:w-full print:min-h-0"
+          className="bg-white text-slate-900 w-[210mm] min-h-[297mm] shadow-2xl p-8 sm:p-10 flex flex-col justify-between print:block print:shadow-none print:p-6 print:w-full print:min-h-0"
           style={{
             paddingTop: stationeryMode === 'preprinted' ? `${topMarginInch}in` : undefined,
             paddingBottom: stationeryMode === 'preprinted' ? `${bottomMarginInch}in` : undefined,
@@ -586,7 +586,11 @@ export default function ReportDesigner() {
           {/* Section 3: Diagnostic Report Body */}
           <div className="space-y-6">
             {orderDetail?.order_tests.map((test) => (
-              <div key={test.id} className={`space-y-2 ${pageBreaks[test.id] ? 'report-test-page-break' : ''}`}>
+              <div
+                key={test.id}
+                className={`space-y-2 ${pageBreaks[test.id] ? 'report-test-page-break' : ''}`}
+                style={pageBreaks[test.id] ? { breakBefore: 'page', pageBreakBefore: 'always' } : undefined}
+              >
                 {/* Department / Test Header */}
                 <div className="border-b-2 border-slate-800 pb-1 flex items-baseline justify-between">
                   <h3 className="font-black text-sm uppercase tracking-wide text-slate-900">

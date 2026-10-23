@@ -16,11 +16,21 @@
     .report-test-page-break {
       break-before: page !important;
       page-break-before: always !important;
+      display: flow-root !important;
+    }
+
+    #report-designer-page,
+    #report-designer-page .overflow-x-auto,
+    #diagnostic-report-sheet {
+      display: block !important;
+      overflow: visible !important;
+      transform: none !important;
+      margin-bottom: 0 !important;
     }
 
     #diagnostic-report-sheet {
-      transform: none !important;
-      margin-bottom: 0 !important;
+      min-height: 0 !important;
+      height: auto !important;
     }
   }
 
