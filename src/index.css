@@ -12,28 +12,6 @@
     margin: 0;
   }
 
-  @media print {
-    .report-test-page-break {
-      break-before: page !important;
-      page-break-before: always !important;
-      display: flow-root !important;
-    }
-
-    #report-designer-page,
-    #report-designer-page .overflow-x-auto,
-    #diagnostic-report-sheet {
-      display: block !important;
-      overflow: visible !important;
-      transform: none !important;
-      margin-bottom: 0 !important;
-    }
-
-    #diagnostic-report-sheet {
-      min-height: 0 !important;
-      height: auto !important;
-    }
-  }
-
   body {
     overflow-x: hidden;
   }
@@ -65,5 +43,54 @@
   #main-content-scroll select,
   #main-content-scroll textarea {
     max-width: 100%;
+  }
+}
+
+.report-page-break-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.5rem 0 1rem;
+  color: #4338ca;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.report-page-break-preview::before,
+.report-page-break-preview::after {
+  content: "";
+  flex: 1;
+  border-top: 1px dashed #a5b4fc;
+}
+
+@media print {
+  body {
+    overflow: visible !important;
+  }
+
+  #report-designer-page,
+  #report-designer-page .overflow-x-auto,
+  #diagnostic-report-sheet {
+    display: block !important;
+    overflow: visible !important;
+    transform: none !important;
+    margin-bottom: 0 !important;
+  }
+
+  #diagnostic-report-sheet {
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  #diagnostic-report-sheet .report-test-page-break {
+    break-before: page !important;
+    page-break-before: always !important;
+    display: flow-root !important;
+  }
+
+  .report-page-break-preview {
+    display: none !important;
   }
 }

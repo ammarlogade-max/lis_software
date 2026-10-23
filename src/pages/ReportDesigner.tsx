@@ -586,11 +586,20 @@ export default function ReportDesigner() {
           {/* Section 3: Diagnostic Report Body */}
           <div className="space-y-6">
             {orderDetail?.order_tests.map((test) => (
-              <div
+              <section
                 key={test.id}
                 className={`space-y-2 ${pageBreaks[test.id] ? 'report-test-page-break' : ''}`}
-                style={pageBreaks[test.id] ? { breakBefore: 'page', pageBreakBefore: 'always' } : undefined}
+                style={pageBreaks[test.id] ? {
+                  breakBefore: 'page',
+                  pageBreakBefore: 'always',
+                  pageBreakInside: 'avoid',
+                } : { pageBreakInside: 'avoid' }}
               >
+                {pageBreaks[test.id] && (
+                  <div className="report-page-break-preview" aria-label="This test group starts on a new printed page">
+                    <span>New report page</span>
+                  </div>
+                )}
                 {/* Department / Test Header */}
                 <div className="border-b-2 border-slate-800 pb-1 flex items-baseline justify-between">
                   <h3 className="font-black text-sm uppercase tracking-wide text-slate-900">
@@ -659,7 +668,7 @@ export default function ReportDesigner() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </section>
             ))}
           </div>
 
