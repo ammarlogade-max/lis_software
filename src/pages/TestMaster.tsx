@@ -248,17 +248,17 @@ export default function TestMaster() {
     }
   }
 
-  async function handleDeactivate() {
-    if (!draft || draft.id.startsWith('new-')) return;
-    const action = draft.is_active ? 'remove' : 'restore';
+  async function handleDeactivate(group: TestGroup | null = draft) {
+    if (!group || group.id.startsWith('new-')) return;
+    const action = group.is_active ? 'remove' : 'restore';
     if (!window.confirm(
-      draft.is_active
-        ? `Remove "${draft.display_name}" from new visits? Existing patient reports will remain safe.`
-        : `Restore "${draft.display_name}" for new visits?`
+      group.is_active
+        ? `Remove "${group.display_name}" from new visits? Existing patient reports will remain safe.`
+        : `Restore "${group.display_name}" for new visits?`
     )) return;
     setSaveError(null);
     try {
-      await testGroupsDb.updateGroup(draft.id, { is_active: !draft.is_active });
+      await testGroupsDb.updateGroup(group.id, { is_active: !group.is_active });
       await load();
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : `Could not ${action} this test group.`);
@@ -283,15 +283,40 @@ export default function TestMaster() {
         </div>
         <div className="overflow-y-auto min-h-0 max-h-72 lg:max-h-none lg:flex-1">
           {filtered.map((group) => (
-            <button
+            <div
               key={group.id}
-              onClick={() => selectGroup(group)}
-              className={`w-full text-left px-3 py-2 text-sm border-b border-slate-50 ${
+              className={`flex items-center gap-1 border-b border-slate-50 ${
                 selectedId === group.id ? 'bg-blue-600 text-white font-semibold' : 'text-slate-700 hover:bg-slate-50'
               } ${!group.is_active ? 'opacity-40 italic' : ''}`}
             >
-              {group.display_name}
-            </button>
+              <button
+                type="button"
+                onClick={() => selectGroup(group)}
+                className="min-w-0 flex-1 px-3 py-2 text-left text-sm"
+              >
+                {group.display_name}
+              </button>
+              {!group.id.startsWith('new-') && (
+                <button
+                  type="button"
+                  title={group.is_active ? 'Remove group from new visits' : 'Restore group'}
+                  aria-label={group.is_active ? `Remove ${group.display_name}` : `Restore ${group.display_name}`}
+                  onClick={() => {
+                    selectGroup(group);
+                    void handleDeactivate(group);
+                  }}
+                  className={`mr-2 rounded p-1.5 ${
+                    selectedId === group.id
+                      ? 'text-white/80 hover:bg-white/20'
+                      : group.is_active
+                        ? 'text-rose-500 hover:bg-rose-50'
+                        : 'text-emerald-600 hover:bg-emerald-50'
+                  }`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
           ))}
         </div>
         <button
@@ -539,7 +564,7 @@ export default function TestMaster() {
               {!draft.id.startsWith('new-') && (
                 <button
                   type="button"
-                  onClick={handleDeactivate}
+                  onClick={() => void handleDeactivate()}
                   className={`px-4 py-2 text-xs font-semibold rounded-lg border ${
                     draft.is_active
                       ? 'border-red-300 text-red-600 hover:bg-red-50'
