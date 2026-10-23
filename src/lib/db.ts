@@ -378,7 +378,6 @@ export interface NewOrderInput {
   paid: number;
   payment_mode: string;
   test_group_ids: string[];
-  test_group_page_breaks?: Record<string, boolean>;
 }
 
 async function nextLabId(): Promise<string> {
@@ -429,11 +428,7 @@ export const ordersDb = {
     if (error) throw new Error(error.message);
 
     if (input.test_group_ids.length > 0) {
-      const rows = input.test_group_ids.map((tgId) => ({
-        order_id: order.id,
-        test_group_id: tgId,
-        start_new_page: input.test_group_page_breaks?.[tgId] === true,
-      }));
+      const rows = input.test_group_ids.map((tgId) => ({ order_id: order.id, test_group_id: tgId }));
       const { error: otgErr } = await supabase.from('order_test_groups').insert(rows);
       if (otgErr) throw new Error(otgErr.message);
     }

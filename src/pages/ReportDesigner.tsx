@@ -88,6 +88,7 @@ export default function ReportDesigner() {
   const [orders, setOrders] = useState<OrderOption[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string>('');
   const [orderDetail, setOrderDetail] = useState<OrderDetail | null>(null);
+  const [pageBreaks, setPageBreaks] = useState<Record<string, boolean>>({});
   const [settings, setSettings] = useState<ReportSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -152,6 +153,9 @@ export default function ReportDesigner() {
         collected_at: (detail as any).collected_at || null,
         phlebotomist: (detail as any).phlebotomist || null,
       } as OrderDetail);
+      setPageBreaks(Object.fromEntries(
+        ((detail as any).order_tests || []).map((test: OrderDetail['order_tests'][number]) => [test.id, test.start_new_page === true])
+      ));
     } catch (error) {
       console.error('Unable to load report order', error);
     }
@@ -281,6 +285,31 @@ export default function ReportDesigner() {
               ))}
             </select>
           </div>
+
+          {orderDetail && orderDetail.order_tests.length > 1 && (
+            <div className="md:col-span-3 lg:col-span-4 rounded-lg border border-indigo-100 bg-indigo-50/60 p-3">
+              <p className="mb-2 text-[11px] font-bold text-indigo-900">Page layout for this print</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {orderDetail.order_tests.map((test) => (
+                  <label key={test.id} className="flex items-center justify-between gap-3 text-xs text-indigo-950">
+                    <span>{test.test_group_name}</span>
+                    <select
+                      value={pageBreaks[test.id] ? 'new-page' : 'same-page'}
+                      onChange={(event) => setPageBreaks((current) => ({
+                        ...current,
+                        [test.id]: event.target.value === 'new-page',
+                      }))}
+                      className="rounded-md border border-indigo-200 bg-white px-2 py-1.5 text-xs text-indigo-950"
+                    >
+                      <option value="same-page">Continue on same page</option>
+                      <option value="new-page">Start on new page</option>
+                    </select>
+                  </label>
+                ))}
+              </div>
+              <p className="mt-2 text-[10px] text-indigo-700">Choose each group’s page placement before printing. These are report-print settings, not patient-entry or Test Master settings.</p>
+            </div>
+          )}
 
           {/* Stationery Mode */}
           <div>
@@ -557,7 +586,7 @@ export default function ReportDesigner() {
           {/* Section 3: Diagnostic Report Body */}
           <div className="space-y-6">
             {orderDetail?.order_tests.map((test) => (
-              <div key={test.id} className={`space-y-2 ${test.start_new_page ? 'report-test-page-break' : ''}`}>
+              <div key={test.id} className={`space-y-2 ${pageBreaks[test.id] ? 'report-test-page-break' : ''}`}>
                 {/* Department / Test Header */}
                 <div className="border-b-2 border-slate-800 pb-1 flex items-baseline justify-between">
                   <h3 className="font-black text-sm uppercase tracking-wide text-slate-900">

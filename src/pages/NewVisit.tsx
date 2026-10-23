@@ -97,7 +97,6 @@ export default function NewVisit() {
   const [centreId, setCentreId] = useState('');
   const [branchId, setBranchId] = useState('');
   const [selectedTests, setSelectedTests] = useState<string[]>([]);
-  const [testGroupPageBreaks, setTestGroupPageBreaks] = useState<Record<string, boolean>>({});
   const [testSearch, setTestSearch] = useState('');
   const [discountPercent, setDiscountPercent] = useState('0');
   const [paid, setPaid] = useState('0');
@@ -251,21 +250,7 @@ export default function NewVisit() {
   }
 
   function toggleTest(id: string) {
-    setSelectedTests((prev) => {
-      if (prev.includes(id)) {
-        setTestGroupPageBreaks((breaks) => {
-          const next = { ...breaks };
-          delete next[id];
-          return next;
-        });
-        return prev.filter((t) => t !== id);
-      }
-      return [...prev, id];
-    });
-  }
-
-  function toggleTestGroupPageBreak(id: string) {
-    setTestGroupPageBreaks((prev) => ({ ...prev, [id]: !prev[id] }));
+    setSelectedTests((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
   }
 
   function applyPackage(pkg: PackageItem) {
@@ -322,7 +307,6 @@ export default function NewVisit() {
           paid: Number(paid || 0),
           payment_mode: paymentMode,
           test_group_ids: selectedTests,
-          test_group_page_breaks: testGroupPageBreaks,
         },
         userData.user?.id || ''
       );
@@ -339,7 +323,6 @@ export default function NewVisit() {
       // Keep form ready for next patient
       handleClearPatient();
       setSelectedTests([]);
-      setTestGroupPageBreaks({});
       setDiscountPercent('0');
       setPaid('0');
     } catch (err) {
@@ -968,33 +951,6 @@ export default function NewVisit() {
                 })
               )}
             </div>
-            {selectedTests.length > 1 && (
-              <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 p-3">
-                <p className="mb-2 text-[11px] font-semibold text-indigo-900">
-                  Report layout for this patient
-                </p>
-                <div className="space-y-2">
-                  {selectedTests.map((id) => {
-                    const group = groups.find((item) => item.id === id);
-                    if (!group) return null;
-                    return (
-                      <label key={id} className="flex items-center justify-between gap-3 text-xs text-indigo-950">
-                        <span>{group.display_name}</span>
-                        <span className="flex items-center gap-2">
-                          <span>{testGroupPageBreaks[id] ? 'New page' : 'Same page'}</span>
-                          <input
-                            type="checkbox"
-                            checked={testGroupPageBreaks[id] === true}
-                            onChange={() => toggleTestGroupPageBreak(id)}
-                            className="rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
-                          />
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
