@@ -45,7 +45,6 @@ interface OrderDetail {
   order_tests: {
     id: string;
     test_group_name: string;
-    start_new_page?: boolean;
     department: string;
     method: string;
     status: string;
@@ -153,9 +152,7 @@ export default function ReportDesigner() {
         collected_at: (detail as any).collected_at || null,
         phlebotomist: (detail as any).phlebotomist || null,
       } as OrderDetail);
-      setPageBreaks(Object.fromEntries(
-        ((detail as any).order_tests || []).map((test: OrderDetail['order_tests'][number]) => [test.id, test.start_new_page === true])
-      ));
+      setPageBreaks({});
     } catch (error) {
       console.error('Unable to load report order', error);
     }
@@ -173,6 +170,15 @@ export default function ReportDesigner() {
   function handlePrint() {
     window.print();
   }
+
+  const reportPages: OrderDetail['order_tests'][] = [];
+  orderDetail?.order_tests.forEach((test, index) => {
+    if (index === 0 || pageBreaks[test.id] || reportPages.length === 0) {
+      reportPages.push([test]);
+    } else {
+      reportPages[reportPages.length - 1].push(test);
+    }
+  });
 
   async function handleReportTemplateUpload(file: File | undefined) {
     if (!file) return;
@@ -443,24 +449,45 @@ export default function ReportDesigner() {
 
       <div className="print:hidden flex flex-wrap items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
         <span className="text-xs font-bold text-slate-600 mr-2">Report viewer</span>
-        <button type="button" disabled={viewerPage <= 1} onClick={() => setViewerPage((page) => Math.max(1, page - 1))} className="px-2 py-1 text-xs border rounded disabled:opacity-40">Previous</button>
-        <span className="text-xs text-slate-600">Page {viewerPage} of 1</span>
-        <button type="button" disabled onClick={() => setViewerPage((page) => page + 1)} className="px-2 py-1 text-xs border rounded disabled:opacity-40">Next</button>
+        <button type="button" disabled={viewerPage <= 1} onClick={() => {
+          const page = Math.max(1, viewerPage - 1);
+          setViewerPage(page);
+          document.getElementById(`report-page-${page}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }} className="px-2 py-1 text-xs border rounded disabled:opacity-40">Previous</button>
+        <span className="text-xs text-slate-600">Page {viewerPage} of {Math.max(reportPages.length, 1)}</span>
+        <button type="button" disabled={viewerPage >= reportPages.length} onClick={() => {
+          const page = Math.min(reportPages.length, viewerPage + 1);
+          setViewerPage(page);
+          document.getElementById(`report-page-${page}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }} className="px-2 py-1 text-xs border rounded disabled:opacity-40">Next</button>
         <button type="button" onClick={() => setViewerZoom((zoom) => Math.max(60, zoom - 10))} className="px-2 py-1 text-xs border rounded">−</button>
         <span className="text-xs font-semibold w-12 text-center">{viewerZoom}%</span>
         <button type="button" onClick={() => setViewerZoom((zoom) => Math.min(150, zoom + 10))} className="px-2 py-1 text-xs border rounded">+</button>
         <button type="button" onClick={() => setViewerZoom(100)} className="px-2 py-1 text-xs border rounded">Page width</button>
         <input value={viewerSearch} onChange={(e) => setViewerSearch(e.target.value)} placeholder="Find in report" className="ml-auto w-36 px-2 py-1 text-xs border rounded" />
-        <button type="button" onClick={() => setSearchMessage(viewerSearch && document.getElementById('diagnostic-report-sheet')?.innerText.toLowerCase().includes(viewerSearch.toLowerCase()) ? 'Found' : 'Not found')} className="px-2 py-1 text-xs border rounded">Find</button>
+        <button type="button" onClick={() => setSearchMessage(viewerSearch && document.getElementById('report-print-pages')?.innerText.toLowerCase().includes(viewerSearch.toLowerCase()) ? 'Found' : 'Not found')} className="px-2 py-1 text-xs border rounded">Find</button>
         {searchMessage && <span className="text-xs text-slate-500">{searchMessage}</span>}
         <button type="button" onClick={handlePrint} className="px-2 py-1 text-xs font-semibold text-blue-700 border border-blue-200 rounded">Print / Export</button>
       </div>
 
-      {/* The Printable A4 Sheet Simulator */}
-      <div className="flex justify-center bg-slate-100 p-4 sm:p-8 rounded-xl border border-slate-200 shadow-inner overflow-x-auto print:block print:overflow-visible print:bg-white print:p-0 print:border-none print:shadow-none">
+      <PagedReportPreview
+        pages={reportPages}
+        orderDetail={orderDetail}
+        settings={settings}
+        stationeryMode={stationeryMode}
+        showQR={showQR}
+        showBarcode={showBarcode}
+        showSignatures={showSignatures}
+        topMarginInch={topMarginInch}
+        bottomMarginInch={bottomMarginInch}
+        zoom={viewerZoom}
+      />
+
+      {/* Legacy continuous preview retained hidden while compatibility selectors are migrated. */}
+      <div className="hidden">
         <div
-          id="diagnostic-report-sheet"
-          className="bg-white text-slate-900 w-[210mm] min-h-[297mm] shadow-2xl p-8 sm:p-10 flex flex-col justify-between print:block print:shadow-none print:p-6 print:w-full print:min-h-0"
+          id="legacy-diagnostic-report-sheet"
+          className="hidden"
           style={{
             paddingTop: stationeryMode === 'preprinted' ? `${topMarginInch}in` : undefined,
             paddingBottom: stationeryMode === 'preprinted' ? `${bottomMarginInch}in` : undefined,
@@ -740,6 +767,200 @@ export default function ReportDesigner() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+interface PagedReportPreviewProps {
+  pages: OrderDetail['order_tests'][];
+  orderDetail: OrderDetail | null;
+  settings: ReportSettings | null;
+  stationeryMode: 'plain' | 'preprinted';
+  showQR: boolean;
+  showBarcode: boolean;
+  showSignatures: boolean;
+  topMarginInch: number;
+  bottomMarginInch: number;
+  zoom: number;
+}
+
+function PagedReportPreview({
+  pages,
+  orderDetail,
+  settings,
+  stationeryMode,
+  showQR,
+  showBarcode,
+  showSignatures,
+  topMarginInch,
+  bottomMarginInch,
+  zoom,
+}: PagedReportPreviewProps) {
+  if (!orderDetail) return null;
+
+  return (
+    <div id="report-print-pages" className="report-print-pages">
+      {pages.map((tests, index) => (
+        <article
+          id={`report-page-${index + 1}`}
+          data-report-page={index + 1}
+          key={tests[0]?.id ?? index}
+          className="report-page bg-white text-slate-900 shadow-2xl"
+          style={{ zoom: zoom / 100 }}
+        >
+          {stationeryMode === 'plain' ? (
+            <header className="report-print-header mb-4">
+              {settings?.logo_path ? (
+                <img src={settings.logo_path} alt="Laboratory report header" className="block h-auto w-full object-contain object-center" />
+              ) : (
+                <div className="border-b-2 border-slate-900 pb-3 flex items-start justify-between">
+                  <div>
+                    <h2 className="text-xl font-black uppercase">{settings?.lab_name || 'Laboratory'}</h2>
+                    <p className="text-xs">{settings?.address} {settings?.phone && `| Tel: ${settings.phone}`}</p>
+                    {settings?.registration_no && <p className="text-xs">Reg. No: {settings.registration_no}</p>}
+                  </div>
+                  {showQR && (
+                    <div className="text-center">
+                      {settings?.qr_code_path
+                        ? <img src={settings.qr_code_path} alt="Report verification QR code" className="h-14 w-14" />
+                        : <QrCode className="h-14 w-14" />}
+                      <span className="block text-[9px] font-bold uppercase">Scan to Verify</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </header>
+          ) : (
+            <div style={{ paddingTop: `${topMarginInch}in` }} />
+          )}
+
+          <section className="report-print-patient bg-slate-50 border border-slate-300 rounded-lg p-3 text-xs mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-2 gap-x-4">
+              <div>
+                <span className="text-slate-500 text-[10px] uppercase font-bold block">Patient Name:</span>
+                <strong>{orderDetail.patient_name}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 text-[10px] uppercase font-bold block">Age / Gender:</span>
+                <strong>{orderDetail.age_years ?? '-'} Yrs / {orderDetail.gender || '-'}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 text-[10px] uppercase font-bold block">MRN / Patient ID:</span>
+                <strong>{orderDetail.mrn || '-'}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 text-[10px] uppercase font-bold block">Lab Reference ID:</span>
+                <strong>{orderDetail.lab_id}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 text-[10px] uppercase font-bold block">Referring Doctor:</span>
+                <strong>{orderDetail.doctor_name || '-'}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 text-[10px] uppercase font-bold block">Centre:</span>
+                <strong>{orderDetail.centre_name || '-'}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 text-[10px] uppercase font-bold block">Visit Date:</span>
+                <strong>{orderDetail.created_at ? new Date(orderDetail.created_at).toLocaleDateString() : '-'}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 text-[10px] uppercase font-bold block">Specimen Accession:</span>
+                <strong>{orderDetail.specimen_id || '-'}</strong>
+              </div>
+            </div>
+            {showBarcode && (
+              <div className="mt-2 border-t border-slate-200 pt-2 flex items-center justify-between text-[10px]">
+                <span className="font-mono font-black">*{orderDetail.specimen_id}*</span>
+                <span>Priority: <strong className="uppercase">{orderDetail.priority}</strong> | Drawn by: {orderDetail.phlebotomist || '-'}</span>
+              </div>
+            )}
+          </section>
+
+          <main className="report-page-content flex-1 space-y-6">
+            {tests.map((test) => (
+              <section key={test.id} className="space-y-2 break-inside-avoid">
+                <div className="border-b-2 border-slate-800 pb-1 flex items-baseline justify-between">
+                  <h3 className="font-black text-sm uppercase tracking-wide">{test.test_group_name}</h3>
+                  <span className="text-[11px] font-semibold text-slate-500">Dept: {test.department} | Method: {test.method}</span>
+                </div>
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-300 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                      <th className="py-1.5 w-5/12">Test Parameter / Analyte</th>
+                      <th className="py-1.5 w-2/12">Observed Value</th>
+                      <th className="py-1.5 w-2/12">Flag</th>
+                      <th className="py-1.5 w-1/12">Unit</th>
+                      <th className="py-1.5 w-2/12 text-right">Biological Reference</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {test.parameters.map((parameter) => {
+                      if (parameter.is_bold_header) {
+                        return (
+                          <tr key={parameter.id} className="bg-slate-100 font-bold text-slate-900">
+                            <td colSpan={5} className="py-1 px-1 text-[11px] uppercase tracking-wider">{parameter.name}</td>
+                          </tr>
+                        );
+                      }
+                      const range = orderDetail.gender === 'Female' ? parameter.normal_range_female : parameter.normal_range_male;
+                      const result = parameter.value ? parseFloat(parameter.value.replace(/[^0-9.]/g, '')) : NaN;
+                      const bounds = range?.split('-').map((part) => parseFloat(part.trim())) ?? [];
+                      const isLow = bounds.length === 2 && !Number.isNaN(result) && !Number.isNaN(bounds[0]) && result < bounds[0];
+                      const isHigh = bounds.length === 2 && !Number.isNaN(result) && !Number.isNaN(bounds[1]) && result > bounds[1];
+                      return (
+                        <tr key={parameter.id} className={isLow || isHigh ? 'bg-amber-50/50' : ''}>
+                          <td className="py-1.5 text-slate-800 font-medium">{parameter.name}</td>
+                          <td className="py-1.5 font-mono font-semibold">{parameter.value ?? '---'}</td>
+                          <td className="py-1.5">{isHigh ? 'HIGH (H)' : isLow ? 'LOW (L)' : ''}</td>
+                          <td className="py-1.5 text-slate-500">{parameter.unit || '-'}</td>
+                          <td className="py-1.5 text-right font-mono text-[11px] text-slate-600">{range || '-'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </section>
+            ))}
+          </main>
+
+          {index === pages.length - 1 && (
+            <div className="text-center my-4">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 border-t border-b border-slate-200 px-6 py-0.5">
+                *** END OF EXAMINATION REPORT ***
+              </span>
+            </div>
+          )}
+
+          {stationeryMode === 'plain' ? (
+            <footer className="report-print-footer mt-4">
+              {!settings?.footer_image_path && showSignatures && index === pages.length - 1 && (
+                <div className="mb-4 grid grid-cols-3 gap-4 text-center text-[10px]">
+                  {[
+                    { name: settings?.signatory_name, degree: settings?.signatory_degree, title: settings?.signatory_title },
+                    { name: settings?.signatory2_name, degree: settings?.signatory2_degree, title: settings?.signatory2_title },
+                    { name: settings?.signatory3_name, degree: settings?.signatory3_degree, title: settings?.signatory3_title },
+                  ].map((slot, slotIndex) => (
+                    <div key={slotIndex} className="border-t border-slate-400 pt-1">
+                      <strong>{slot.name}</strong>{slot.degree ? `, ${slot.degree}` : ''}
+                      {slot.title && <p>{slot.title}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {settings?.footer_image_path ? (
+                <img src={settings.footer_image_path} alt="Laboratory footer" className="block h-auto w-full object-contain object-center" />
+              ) : (
+                <p className="border-t border-slate-200 pt-2 text-center text-[9px] text-slate-500">
+                  {settings?.footer_note || 'Pathological findings are for clinical correlation only.'}
+                </p>
+              )}
+            </footer>
+          ) : (
+            <div style={{ height: `${bottomMarginInch}in` }} />
+          )}
+        </article>
+      ))}
     </div>
   );
 }

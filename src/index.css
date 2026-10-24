@@ -65,10 +65,20 @@
   border-top: 1px dashed #a5b4fc;
 }
 
+.report-page {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto 24px;
+  padding: 10mm;
+}
+
 @media print {
   @page {
     size: A4 portrait;
-    margin: 82mm 10mm 32mm;
+    margin: 0;
   }
 
   body {
@@ -94,77 +104,45 @@
   }
 
   #report-designer-page,
-  #report-designer-page .overflow-x-auto,
-  #diagnostic-report-sheet {
+  #report-print-pages {
     display: block !important;
     overflow: visible !important;
     transform: none !important;
     margin-bottom: 0 !important;
   }
 
-  #diagnostic-report-sheet {
-    min-height: 0 !important;
-    height: auto !important;
-    width: auto !important;
-    padding: 0 !important;
+  #report-designer-page > * {
+    margin-top: 0 !important;
   }
 
-  #diagnostic-report-sheet .report-print-header {
-    position: fixed !important;
-    top: -76mm !important;
-    left: 0 !important;
-    right: 0 !important;
-    height: 35mm !important;
-    margin: 0 !important;
-    padding: 0 0 2mm !important;
-    background: #fff !important;
-    overflow: hidden !important;
-    border-bottom: 0 !important;
-  }
-
-  #diagnostic-report-sheet .report-print-header img {
-    width: 100% !important;
-    height: 32mm !important;
-    object-fit: contain !important;
-    object-position: center top !important;
-  }
-
-  #diagnostic-report-sheet .report-print-patient {
-    position: fixed !important;
-    top: -39mm !important;
-    left: 0 !important;
-    right: 0 !important;
-    margin: 0 !important;
-    background: #fff !important;
-  }
-
-  #diagnostic-report-sheet .report-print-footer {
-    position: fixed !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: -28mm !important;
-    max-height: 26mm !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: 0 !important;
-    background: #fff !important;
-  }
-
-  #diagnostic-report-sheet .report-print-footer img {
-    display: block !important;
-    width: 100% !important;
-    height: auto !important;
-    max-height: 25mm !important;
-    object-fit: contain !important;
-  }
-
-  #diagnostic-report-sheet .report-test-page-break {
-    break-before: page !important;
-    page-break-before: always !important;
-    display: flow-root !important;
-  }
-
-  .report-page-break-preview {
+  #legacy-diagnostic-report-sheet {
     display: none !important;
+  }
+
+  .report-page {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 10mm !important;
+    box-shadow: none !important;
+    zoom: 1 !important;
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+
+  .report-page:last-child {
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+
+  .report-page-content {
+    min-height: 0;
+  }
+
+  .report-print-header,
+  .report-print-patient,
+  .report-print-footer {
+    position: static !important;
   }
 }
