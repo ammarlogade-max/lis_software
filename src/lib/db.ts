@@ -463,7 +463,7 @@ export const ordersDb = {
       .select(
         `id, lab_id, specimen_id, status, priority, created_at, collection_at, received_at, reporting_at, remarks,
          patients(id, mrn, title, full_name, phone, email, gender, age_years),
-         doctor:doctors(salutation, name, degree),
+         doctor:doctors(salutation, name, degree, contact_no, email),
          centre:collection_centres(name),
          branch:branches(name),
          order_test_groups(id, status, test_groups(id, display_name, report_title, department, method_interpretation,
@@ -491,9 +491,14 @@ export const ordersDb = {
       priority: (order as any).priority,
       patient: (order as any).patients,
       doctor_name: (order as any).doctor ? `${(order as any).doctor.salutation} ${(order as any).doctor.name} (${(order as any).doctor.degree})` : 'Self / Walk-In',
+      doctor_phone: (order as any).doctor?.contact_no || '',
+      doctor_email: (order as any).doctor?.email || '',
       centre_name: (order as any).centre?.name || 'Main Laboratory',
       branch_name: (order as any).branch?.name || 'Main Lab Campus',
       created_at: (order as any).created_at,
+      collection_at: (order as any).collection_at,
+      received_at: (order as any).received_at,
+      reporting_at: (order as any).reporting_at,
       order_tests: ((order as any).order_test_groups || []).map((g: any) => ({
         id: g.id,
         test_group_name: g.test_groups?.display_name || '',
@@ -551,8 +556,16 @@ export interface ReportSettings {
   signatory3_name: string;
   signatory3_degree: string;
   signatory3_title: string;
+  signatory_signature_path: string | null;
+  signatory2_signature_path: string | null;
+  signatory3_signature_path: string | null;
   footer_note: string;
   accent_color_hex: string;
+  lab_name_alignment: string;
+  address_alignment: string;
+  test_title_alignment: string;
+  font_color: string;
+  abnormal_red_enabled: boolean;
   logo_path: string | null;
   qr_code_path: string | null;
   footer_image_path: string | null;
@@ -617,7 +630,7 @@ export const toolsDb = {
 // Requires a public bucket named "uploads" (see SETUP.md step 3).
 // ---------------------------------------------------------------------------
 export const storageDb = {
-  async uploadPublicImage(file: File, folder: 'logo' | 'qr-code' | 'footer'): Promise<string> {
+  async uploadPublicImage(file: File, folder: 'logo' | 'qr-code' | 'footer' | 'signature'): Promise<string> {
     const ext = file.name.split('.').pop() || 'png';
     const path = `${folder}/${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from('uploads').upload(path, file, { upsert: true });

@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { patientsDb, doctorsDb, centresDb, testGroupsDb, packagesDb, branchesDb, ordersDb, reportSettingsDb } from '../lib/db';
+import { patientsDb, doctorsDb, centresDb, testGroupsDb, packagesDb, branchesDb, ordersDb, pageSetupDb, reportSettingsDb } from '../lib/db';
+import type { PageSetup } from '../lib/db';
 import { supabase } from '../lib/supabaseClient';
 import {
   CheckCircle2,
@@ -107,9 +108,11 @@ export default function NewVisit() {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showPatientList, setShowPatientList] = useState(false);
   const [labName, setLabName] = useState('');
+  const [pageSetup, setPageSetup] = useState<PageSetup | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
       patientsDb.list().then(setPatients),
       doctorsDb.list().then(setDoctors),
@@ -120,11 +123,26 @@ export default function NewVisit() {
     ]).catch((error) => {
       setPageError(error instanceof Error ? error.message : 'Could not load visit data.');
     });
-    reportSettingsDb
-      .get()
-      .then((s) => setLabName(s.lab_name || ''))
-      .catch(() => {});
+    Promise.all([reportSettingsDb.get(), pageSetupDb.get()])
+      .then(([settings, setup]) => {
+        if (cancelled) return;
+        setLabName(settings.lab_name || '');
+        setPageSetup(setup);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setPageError(error instanceof Error ? error.message : 'Could not load receipt settings.');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle('print-receipt-mode', showReceiptModal);
+    return () => document.body.classList.remove('print-receipt-mode');
+  }, [showReceiptModal]);
 
   const filteredPatients = useMemo(() => {
     if (!patientSearch.trim()) return [];
@@ -1117,32 +1135,44 @@ export default function NewVisit() {
 
       {/* Booking Receipt / Thermal Slip Modal */}
       {showReceiptModal && savedOrder && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-bold text-sm text-slate-900">Visit Registration & Receipt Slip</h3>
+        <div id="visit-receipt-modal" className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div
+            id="visit-receipt-content"
+            className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4"
+            style={pageSetup ? {
+              paddingTop: `${pageSetup.receipt_margin.top}in`,
+              paddingBottom: `${pageSetup.receipt_margin.bottom}in`,
+              paddingLeft: `${pageSetup.receipt_margin.left}in`,
+              paddingRight: `${pageSetup.receipt_margin.right}in`,
+            } : undefined}
+          >
+            {!pageSetup?.print_flags.without_header_receipt && (
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-emerald-600" />
+                  <h3 className="font-bold text-sm text-slate-900">Visit Registration & Receipt Slip</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowReceiptModal(false)}
+                  className="text-slate-400 hover:text-slate-600 text-xs font-semibold"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowReceiptModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-semibold"
-              >
-                ✕
-              </button>
-            </div>
+            )}
 
-            {/* Receipt Preview Card */}
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 font-mono text-xs space-y-2 text-slate-800">
-              <div className="text-center border-b border-slate-200 pb-2">
-                <div className="font-bold text-sm text-slate-900">
-                  {labName || 'Lab name not set — configure under Report Settings'}
+              {!pageSetup?.print_flags.without_header_receipt && (
+                <div className="text-center border-b border-slate-200 pb-2">
+                  <div className="font-bold text-sm text-slate-900">
+                    {labName || 'Lab name not set — configure under Report Settings'}
+                  </div>
+                  <div className="text-xs font-bold text-blue-700 mt-1">
+                    VISIT TOKEN: {savedOrder.lab_id}
+                  </div>
                 </div>
-                <div className="text-xs font-bold text-blue-700 mt-1">
-                  VISIT TOKEN: {savedOrder.lab_id}
-                </div>
-              </div>
+              )}
 
               <div className="space-y-1 text-[11px] pt-1">
                 <div className="flex justify-between">
@@ -1173,7 +1203,7 @@ export default function NewVisit() {
 
             </div>
 
-            <div className="flex items-center gap-2 pt-2">
+            <div className="receipt-print-actions flex items-center gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => window.print()}
