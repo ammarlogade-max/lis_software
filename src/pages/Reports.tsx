@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { reportsDb } from '../lib/db';
 import { FileBarChart } from 'lucide-react';
 
@@ -26,7 +26,9 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  const offset = today.getTimezoneOffset() * 60_000;
+  return new Date(today.getTime() - offset).toISOString().slice(0, 10);
 }
 
 // Mirrors Patho One's Reports menu exactly (Day Book / Doctorwise / Due List /
@@ -41,17 +43,28 @@ export default function Reports() {
   const [search, setSearch] = useState('');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const requestId = useRef(0);
 
   async function load() {
+    const currentRequestId = ++requestId.current;
     setLoading(true);
+    setError(null);
     try {
+      let result;
       if (tab === 'rate-list') {
-        setData(await reportsDb.load(tab));
+        result = await reportsDb.load(tab);
       } else {
-        setData(await reportsDb.load(tab, fromDate, toDate, search.trim()));
+        result = await reportsDb.load(tab, fromDate, toDate, search.trim());
+      }
+      if (currentRequestId === requestId.current) setData(result);
+    } catch (loadError) {
+      if (currentRequestId === requestId.current) {
+        setData(null);
+        setError(loadError instanceof Error ? loadError.message : 'Could not load this report.');
       }
     } finally {
-      setLoading(false);
+      if (currentRequestId === requestId.current) setLoading(false);
     }
   }
 
@@ -71,7 +84,12 @@ export default function Reports() {
         {TABS.map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => {
+              requestId.current += 1;
+              setData(null);
+              setError(null);
+              setTab(t.id);
+            }}
             className={`px-3 py-2 text-xs font-semibold border-b-2 -mb-px ${
               tab === t.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
@@ -108,6 +126,12 @@ export default function Reports() {
         </div>
       )}
 
+      {error && (
+        <div role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          Could not load this report: {error}
+        </div>
+      )}
+
       {loading ? (
         <div className="bg-white rounded-xl border border-slate-200 p-6 text-slate-400 text-sm">Loading...</div>
       ) : (
@@ -126,6 +150,7 @@ function ReportTable({ tab, data }: { tab: Tab; data: any }) {
         cols={['Lab ID', 'Patient', 'Phone', 'Paid', 'Mode']}
         rows={data.rows.map((r: any) => [r.lab_id, r.patient_name, r.phone ?? '-', r.paid, r.payment_mode])}
         footer={['Total Received', '', '', data.total_received, '']}
+        emptyMessage="No fees were received in this date range. Use Day Book to see all visits."
       />
     );
   }
@@ -159,7 +184,7 @@ function ReportTable({ tab, data }: { tab: Tab; data: any }) {
     return (
       <Table
         cols={['Centre', 'Patients', 'Total Billing', 'Commission %', 'Commission Amount']}
-        rows={data.rows.map((r: any) => [r.centre_name, r.patient_count, r.total_billing, r.commission_percent, r.commission_amount.toFixed(2)])}
+        rows={data.rows.map((r: any) => [r.centre_name, r.patient_count, r.total_billing, r.commission_percent, Number(r.commission_amount || 0).toFixed(2)])}
       />
     );
   }
@@ -188,13 +213,14 @@ function ReportTable({ tab, data }: { tab: Tab; data: any }) {
       <Table
         cols={['Lab ID', 'Patient', 'Gender', 'Age', 'Phone', 'Registered On']}
         rows={data.rows.map((r: any) => [r.lab_id, r.patient_name, r.gender, r.age, r.phone, r.registered_on?.slice(0, 10)])}
+        emptyMessage="No patients were registered in this date range."
       />
     );
   }
   return null;
 }
 
-function Table({ cols, rows, footer }: { cols: string[]; rows: any[][]; footer?: any[] }) {
+function Table({ cols, rows, footer, emptyMessage = 'No records found in this range.' }: { cols: string[]; rows: any[][]; footer?: any[]; emptyMessage?: string }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
       <table className="w-full text-sm">
@@ -220,7 +246,7 @@ function Table({ cols, rows, footer }: { cols: string[]; rows: any[][]; footer?:
           {rows.length === 0 && (
             <tr>
               <td colSpan={cols.length} className="px-4 py-6 text-center text-slate-400">
-                No records found in this range.
+                {emptyMessage}
               </td>
             </tr>
           )}

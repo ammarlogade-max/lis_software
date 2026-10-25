@@ -900,27 +900,71 @@ export const financeDb = {
 
 export const reportsDb = {
   async load(tab: string, fromDate?: string, toDate?: string, search?: string) {
-    const [{ data: orders, error: orderError }, { data: groups, error: groupError }, { data: doctors, error: doctorError }, { data: centres, error: centreError }, { data: patients, error: patientError }, { data: settings, error: settingsError }, { data: profiles, error: profilesError }] = await Promise.all([
-      supabase.from('orders').select('*, patient:patients(full_name, phone), order_test_groups(test_group:test_groups(display_name))').order('created_at', { ascending: false }),
-      supabase.from('test_groups').select('id, display_name, rate'),
-      supabase.from('doctors').select('id, salutation, name'),
-      supabase.from('collection_centres').select('id, name, commission_percent'),
-      supabase.from('patients').select('id, full_name, phone, gender, age_years'),
-      supabase.from('report_settings').select('lab_name').eq('id', 1).single(),
-      supabase.from('profiles').select('id, full_name'),
-    ]);
-    if (orderError || groupError || doctorError || centreError || patientError || settingsError || profilesError) {
-      throw new Error([orderError, groupError, doctorError, centreError, patientError, settingsError, profilesError].find(Boolean)?.message || 'Could not load report data.');
+    if (tab === 'rate-list') {
+      const [{ data: groups, error: groupError }, { data: settings, error: settingsError }] = await Promise.all([
+        supabase.from('test_groups').select('id, display_name, rate'),
+        supabase.from('report_settings').select('lab_name').eq('id', 1).maybeSingle(),
+      ]);
+      if (groupError || settingsError) throw new Error(groupError?.message || settingsError?.message || 'Could not load the test rate list.');
+      return { rows: (groups || []).map((group: any) => ({ display_name: group.display_name, rate: group.rate })), lab_name: settings?.lab_name || '' };
     }
-    const from = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : -Infinity;
-    const to = toDate ? new Date(`${toDate}T23:59:59`).getTime() : Infinity;
-    const rows = (orders || []).filter((order: any) => {
-      const created = new Date(order.created_at).getTime();
-      return created >= from && created <= to;
-    });
-    if (tab === 'rate-list') return { rows: (groups || []).map((group: any) => ({ display_name: group.display_name, rate: group.rate })), lab_name: settings?.lab_name || '' };
+
+    if (tab === 'patients-list') {
+      let query = supabase
+        .from('patients')
+        .select('id, mrn, full_name, phone, gender, age_years, created_at')
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false });
+      const start = fromDate ? new Date(`${fromDate}T00:00:00`) : null;
+      const end = toDate ? new Date(`${toDate}T00:00:00`) : null;
+      if (start && Number.isNaN(start.getTime())) throw new Error('Choose a valid start date.');
+      if (end && Number.isNaN(end.getTime())) throw new Error('Choose a valid end date.');
+      if (start && end && start > end) throw new Error('The start date must be on or before the end date.');
+      if (start) query = query.gte('created_at', start.toISOString());
+      if (end) {
+        end.setDate(end.getDate() + 1);
+        query = query.lt('created_at', end.toISOString());
+      }
+      const { data: patients, error } = await query;
+      if (error) throw new Error(error.message);
+      return {
+        rows: (patients || []).map((patient: any) => ({
+          lab_id: patient.mrn,
+          patient_name: patient.full_name || '',
+          gender: patient.gender || '-',
+          age: patient.age_years ? `${patient.age_years}y` : '-',
+          phone: patient.phone || '-',
+          registered_on: patient.created_at,
+        })),
+      };
+    }
+
+    let ordersQuery = supabase
+      .from('orders')
+      .select('id, lab_id, patient_id, doctor_id, centre_id, created_by, payable, paid, due, payment_mode, created_at, patient:patients(full_name, phone), order_test_groups(test_group:test_groups(display_name))')
+      .order('created_at', { ascending: false });
+    const start = fromDate ? new Date(`${fromDate}T00:00:00`) : null;
+    const end = toDate ? new Date(`${toDate}T00:00:00`) : null;
+    if (start && Number.isNaN(start.getTime())) throw new Error('Choose a valid start date.');
+    if (end && Number.isNaN(end.getTime())) throw new Error('Choose a valid end date.');
+    if (start && end && start > end) throw new Error('The start date must be on or before the end date.');
+    if (start) ordersQuery = ordersQuery.gte('created_at', start.toISOString());
+    if (end) {
+      end.setDate(end.getDate() + 1);
+      ordersQuery = ordersQuery.lt('created_at', end.toISOString());
+    }
+    const { data: orders, error: orderError } = await ordersQuery;
+    if (orderError) throw new Error(orderError.message);
+    const rows = orders || [];
+
     if (tab === 'fees-received') {
-      const filtered = rows.filter((order: any) => Number(order.paid) > 0).filter((order: any) => !search || order.lab_id.toLowerCase().includes(search.toLowerCase()) || order.patient?.full_name?.toLowerCase().includes(search.toLowerCase()) || order.patient?.phone?.includes(search));
+      const normalizedSearch = search?.trim().toLowerCase() || '';
+      const filtered = rows
+        .filter((order: any) => Number(order.paid) > 0)
+        .filter((order: any) => !normalizedSearch
+          || (order.lab_id || '').toLowerCase().includes(normalizedSearch)
+          || (order.patient?.full_name || '').toLowerCase().includes(normalizedSearch)
+          || (order.patient?.phone || '').includes(normalizedSearch));
       return { rows: filtered.map((order: any) => ({ lab_id: order.lab_id, patient_name: order.patient?.full_name || '', phone: order.patient?.phone, paid: order.paid, payment_mode: order.payment_mode, created_at: order.created_at })), total_received: filtered.reduce((sum: number, order: any) => sum + Number(order.paid || 0), 0) };
     }
     if (tab === 'day-book') {
@@ -932,10 +976,14 @@ export const reportsDb = {
       return { rows: result, total_due: result.reduce((sum: number, row: any) => sum + Number(row.due_amount || 0), 0) };
     }
     if (tab === 'doctorwise') {
+      const { data: doctors, error } = await supabase.from('doctors').select('id, salutation, name');
+      if (error) throw new Error(error.message);
       const result = (doctors || []).map((doctor: any) => { const doctorOrders = rows.filter((order: any) => order.doctor_id === doctor.id); return { doctor_name: `${doctor.salutation} ${doctor.name}`, test_count: doctorOrders.reduce((sum: number, order: any) => sum + (order.order_test_groups || []).length, 0), patient_count: doctorOrders.length, total_billing: doctorOrders.reduce((sum: number, order: any) => sum + Number(order.payable || 0), 0) }; });
       return { rows: result };
     }
     if (tab === 'userwise') {
+      const { data: profiles, error } = await supabase.from('profiles').select('id, full_name');
+      if (error) throw new Error(error.message);
       const names = new Map((profiles || []).map((profile: any) => [profile.id, profile.full_name || profile.id]));
       const grouped = new Map<string, { user_name: string; test_count: number; total_billing: number }>();
       rows.forEach((order: any) => {
@@ -949,14 +997,14 @@ export const reportsDb = {
       return { rows: result, total: result.reduce((sum, row) => sum + row.total_billing, 0) };
     }
     if (tab === 'agentwise') {
+      const { data: centres, error } = await supabase.from('collection_centres').select('id, name, commission_percent');
+      if (error) throw new Error(error.message);
       return { rows: (centres || []).map((centre: any) => { const centreOrders = rows.filter((order: any) => order.centre_id === centre.id); const billing = centreOrders.reduce((sum: number, order: any) => sum + Number(order.payable || 0), 0); return { centre_name: centre.name, patient_count: centreOrders.length, total_billing: billing, commission_percent: centre.commission_percent, commission_amount: billing * Number(centre.commission_percent || 0) / 100 }; }) };
     }
     if (tab === 'testwise') {
+      const { data: groups, error } = await supabase.from('test_groups').select('id, display_name, rate');
+      if (error) throw new Error(error.message);
       return { rows: (groups || []).map((group: any) => { const count = rows.filter((order: any) => (order.order_test_groups || []).some((item: any) => item.test_group?.display_name === group.display_name)).length; return { test_name: group.display_name, count, revenue: count * Number(group.rate || 0) }; }).filter((row: any) => row.count > 0) };
-    }
-    if (tab === 'patients-list') {
-      const seen = new Set<string>();
-      return { rows: rows.filter((order: any) => { if (seen.has(order.patient_id)) return false; seen.add(order.patient_id); return true; }).map((order: any) => ({ lab_id: order.lab_id, patient_name: order.patient?.full_name || '', gender: order.patient?.gender || '-', age: order.patient?.age_years ? `${order.patient.age_years}y` : '-', phone: order.patient?.phone || '-', registered_on: order.created_at })) };
     }
     return { rows: [] };
   },
