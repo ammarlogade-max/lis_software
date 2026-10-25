@@ -4,6 +4,7 @@ import { ordersDb, reportSettingsDb } from '../lib/db';
 import { storageDb } from '../lib/db';
 import { supabase } from '../lib/supabaseClient';
 import { generateReportPdf } from '../lib/generateReportPdf';
+import { readReportGroupPageModes } from '../lib/reportLayout';
 import { jsPDF } from 'jspdf';
 import JsBarcode from 'jsbarcode';
 import { computeFormulas } from '../lib/formula';
@@ -265,6 +266,7 @@ export default function Visits() {
   async function buildReportPdfBlob(): Promise<Blob> {
     if (!detail) throw new Error('No order loaded.');
     const settings = await reportSettingsDb.get();
+    const pageBreaks = readReportGroupPageModes(detail.id);
     return generateReportPdf(
       {
         lab_id: detail.lab_id || '',
@@ -272,6 +274,7 @@ export default function Visits() {
         gender: detail.patient_gender || '',
         age_years: detail.patient_age_years,
         order_tests: detail.order_tests.map((ot) => ({
+          id: ot.id,
           test_group_name: ot.test_group_name,
           start_new_page: ot.start_new_page,
           parameters: ot.parameters
@@ -286,6 +289,7 @@ export default function Visits() {
             })),
         })),
         reported_at: new Date().toLocaleDateString(),
+        page_breaks: pageBreaks,
       },
       settings
     );

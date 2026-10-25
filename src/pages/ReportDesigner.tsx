@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ordersDb, reportSettingsDb, storageDb } from '../lib/db';
+import { readReportGroupPageModes, saveReportGroupPageModes } from '../lib/reportLayout';
 import {
   Printer,
   FileText,
@@ -107,6 +108,7 @@ export default function ReportDesigner() {
   const [viewerPage, setViewerPage] = useState(1);
   const [viewerSearch, setViewerSearch] = useState('');
   const [searchMessage, setSearchMessage] = useState('');
+  const [layoutError, setLayoutError] = useState<string | null>(null);
 
   async function loadInitialData() {
     try {
@@ -137,6 +139,15 @@ export default function ReportDesigner() {
     try {
       const detail = await ordersDb.getDetail(id);
       const patient = (detail as any).patient || {};
+      const orderGroups = ((detail as any).order_tests || []) as OrderDetail['order_tests'];
+      let savedModes: Record<string, boolean> = {};
+      try {
+        savedModes = readReportGroupPageModes(id);
+        setLayoutError(null);
+      } catch (error) {
+        setLayoutError(error instanceof Error ? error.message : 'Could not load the saved report page layout.');
+        console.error('Unable to load saved report page layout', error);
+      }
       setOrderDetail({
         ...(detail as any),
         patient_name: patient.full_name || '',
@@ -152,7 +163,8 @@ export default function ReportDesigner() {
         collected_at: (detail as any).collected_at || null,
         phlebotomist: (detail as any).phlebotomist || null,
       } as OrderDetail);
-      setPageBreaks({});
+      setPageBreaks(Object.fromEntries(orderGroups.map((group) => [group.id, savedModes[group.id] ?? false])));
+      setViewerPage(1);
     } catch (error) {
       console.error('Unable to load report order', error);
     }
@@ -164,7 +176,22 @@ export default function ReportDesigner() {
 
   function handleOrderChange(id: string) {
     setSelectedOrderId(id);
+    setOrderDetail(null);
+    setLayoutError(null);
     loadOrderDetail(id);
+  }
+
+  function handlePageBreakChange(groupId: string, startNewPage: boolean) {
+    const next = { ...pageBreaks, [groupId]: startNewPage };
+    setPageBreaks(next);
+    if (!selectedOrderId) return;
+    try {
+      saveReportGroupPageModes(selectedOrderId, next);
+      setLayoutError(null);
+    } catch (error) {
+      setLayoutError(error instanceof Error ? error.message : 'Could not save the report page layout.');
+      console.error('Unable to save report page layout', error);
+    }
   }
 
   function handlePrint() {
@@ -301,10 +328,7 @@ export default function ReportDesigner() {
                     <span>{test.test_group_name}</span>
                     <select
                       value={pageBreaks[test.id] ? 'new-page' : 'same-page'}
-                      onChange={(event) => setPageBreaks((current) => ({
-                        ...current,
-                        [test.id]: event.target.value === 'new-page',
-                      }))}
+                      onChange={(event) => handlePageBreakChange(test.id, event.target.value === 'new-page')}
                       className="rounded-md border border-indigo-200 bg-white px-2 py-1.5 text-xs text-indigo-950"
                     >
                       <option value="same-page">Continue on same page</option>
@@ -313,7 +337,8 @@ export default function ReportDesigner() {
                   </label>
                 ))}
               </div>
-              <p className="mt-2 text-[10px] text-indigo-700">Choose each group’s page placement before printing. These are report-print settings, not patient-entry or Test Master settings.</p>
+              <p className="mt-2 text-[10px] text-indigo-700">Choose each group’s page placement before printing. These are report-print settings, not patient-entry or Test Master settings. Choices save per order on this device.</p>
+              {layoutError && <p role="alert" className="mt-1 text-[10px] font-semibold text-rose-700">{layoutError}</p>}
             </div>
           )}
 
@@ -455,6 +480,7 @@ export default function ReportDesigner() {
           document.getElementById(`report-page-${page}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }} className="px-2 py-1 text-xs border rounded disabled:opacity-40">Previous</button>
         <span className="text-xs text-slate-600">Page {viewerPage} of {Math.max(reportPages.length, 1)}</span>
+        {layoutError && <span role="alert" className="text-xs font-semibold text-rose-700">{layoutError}</span>}
         <button type="button" disabled={viewerPage >= reportPages.length} onClick={() => {
           const page = Math.min(reportPages.length, viewerPage + 1);
           setViewerPage(page);

@@ -19,6 +19,7 @@ export interface ReportPdfParameter {
 }
 
 export interface ReportPdfTestGroup {
+  id: string;
   test_group_name: string;
   start_new_page?: boolean;
   parameters: ReportPdfParameter[];
@@ -31,6 +32,7 @@ export interface ReportPdfData {
   age_years: number | null;
   order_tests: ReportPdfTestGroup[];
   reported_at: string;
+  page_breaks?: Record<string, boolean>;
 }
 
 async function loadImageDataUrl(url: string | null): Promise<string | null> {
@@ -60,64 +62,73 @@ export async function generateReportPdf(data: ReportPdfData, settings: ReportSet
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const marginX = 14;
-  let y = 16;
   const logo = await loadImageDataUrl(settings.logo_path);
   const footerImage = await loadImageDataUrl(settings.footer_image_path);
 
-  // --- Header stationery ---
-  if (logo) {
-    const properties = doc.getImageProperties(logo);
-    const maxWidth = pageWidth - marginX * 2;
-    const maxHeight = 40;
-    const scale = Math.min(maxWidth / properties.width, maxHeight / properties.height);
-    const width = properties.width * scale;
-    const height = properties.height * scale;
-    doc.addImage(logo, 'PNG', (pageWidth - width) / 2, y, width, height, undefined, 'FAST');
-    y += height + 4;
-  } else {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
-    doc.text(settings.lab_name || 'Lab name not configured', pageWidth / 2, y, { align: 'center' });
-    y += 6;
+  function drawPageHeader() {
+    let pageY = 16;
+    if (logo) {
+      const properties = doc.getImageProperties(logo);
+      const maxWidth = pageWidth - marginX * 2;
+      const maxHeight = 40;
+      const scale = Math.min(maxWidth / properties.width, maxHeight / properties.height);
+      const width = properties.width * scale;
+      const height = properties.height * scale;
+      doc.addImage(logo, 'PNG', (pageWidth - width) / 2, pageY, width, height, undefined, 'FAST');
+      pageY += height + 4;
+    } else {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text(settings.lab_name || 'Lab name not configured', pageWidth / 2, pageY, { align: 'center' });
+      pageY += 6;
 
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      const contactLine = [settings.address, settings.phone ? `Tel: ${settings.phone}` : ''].filter(Boolean).join('  |  ');
+      if (contactLine) {
+        doc.text(contactLine, pageWidth / 2, pageY, { align: 'center' });
+        pageY += 5;
+      }
+      if (settings.registration_no) {
+        doc.text(`Reg. No: ${settings.registration_no}`, pageWidth / 2, pageY, { align: 'center' });
+        pageY += 5;
+      }
+    }
+
+    doc.setLineWidth(0.4);
+    doc.line(marginX, pageY, pageWidth - marginX, pageY);
+    pageY += 6;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Patient: ${data.patient_name}`, marginX, pageY);
+    doc.text(`Lab ID: ${data.lab_id}`, pageWidth - marginX, pageY, { align: 'right' });
+    pageY += 5;
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    const contactLine = [settings.address, settings.phone ? `Tel: ${settings.phone}` : ''].filter(Boolean).join('  |  ');
-    if (contactLine) {
-      doc.text(contactLine, pageWidth / 2, y, { align: 'center' });
-      y += 5;
-    }
-    if (settings.registration_no) {
-      doc.text(`Reg. No: ${settings.registration_no}`, pageWidth / 2, y, { align: 'center' });
-      y += 5;
-    }
+    const ageGender = [data.age_years !== null ? `${data.age_years} yrs` : null, data.gender].filter(Boolean).join(' / ');
+    doc.text(ageGender, marginX, pageY);
+    doc.text(`Reported: ${data.reported_at}`, pageWidth - marginX, pageY, { align: 'right' });
+    return pageY + 7;
   }
 
-  doc.setLineWidth(0.4);
-  doc.line(marginX, y, pageWidth - marginX, y);
-  y += 6;
+  let y = drawPageHeader();
+  const groupsOnCurrentPage = new Set<string>();
 
-  // --- Patient info block ---
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`Patient: ${data.patient_name}`, marginX, y);
-  doc.text(`Lab ID: ${data.lab_id}`, pageWidth - marginX, y, { align: 'right' });
-  y += 5;
-  doc.setFont('helvetica', 'normal');
-  const ageGender = [data.age_years !== null ? `${data.age_years} yrs` : null, data.gender].filter(Boolean).join(' / ');
-  doc.text(ageGender, marginX, y);
-  doc.text(`Reported: ${data.reported_at}`, pageWidth - marginX, y, { align: 'right' });
-  y += 7;
+  function addReportPage() {
+    doc.addPage();
+    y = drawPageHeader();
+    groupsOnCurrentPage.clear();
+  }
 
   // --- Results, grouped by test group ---
   for (const group of data.order_tests) {
-    if (group.start_new_page && y > 16) {
-      doc.addPage();
-      y = 16;
+    const startsNewPage = data.page_breaks?.[group.id] ?? group.start_new_page ?? false;
+    if (startsNewPage && groupsOnCurrentPage.size > 0) {
+      addReportPage();
     } else if (y > 260) {
-      doc.addPage();
-      y = 16;
+      addReportPage();
     }
+    groupsOnCurrentPage.add(group.id);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setFillColor(240, 244, 255);
@@ -137,8 +148,8 @@ export async function generateReportPdf(data: ReportPdfData, settings: ReportSet
 
     for (const p of group.parameters) {
       if (y > 275) {
-        doc.addPage();
-        y = 16;
+        addReportPage();
+        groupsOnCurrentPage.add(group.id);
       }
       const range = p.normal_range_male || p.normal_range_female || '';
       const abnormal = isAbnormal(p.value, range);
@@ -167,11 +178,10 @@ export async function generateReportPdf(data: ReportPdfData, settings: ReportSet
   ].filter((s) => s.name && s.name.trim());
 
   if (slots.length > 0) {
-    if (y > 250) {
-      doc.addPage();
-      y = 16;
+    if (y > 235) {
+      addReportPage();
     }
-    y = 270;
+    y = 250;
     const colWidth = (pageWidth - marginX * 2) / slots.length;
     slots.forEach((s, i) => {
       const cx = marginX + colWidth * i + colWidth / 2;
@@ -189,20 +199,23 @@ export async function generateReportPdf(data: ReportPdfData, settings: ReportSet
   }
 
   // --- Footer note ---
-  if (settings.footer_note && !footerImage) {
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(7);
-    doc.setTextColor(100, 100, 100);
-    doc.text(settings.footer_note, pageWidth / 2, 290, { align: 'center', maxWidth: pageWidth - marginX * 2 });
-  }
-  if (footerImage) {
-    const properties = doc.getImageProperties(footerImage);
-    const maxWidth = pageWidth - marginX * 2;
-    const maxHeight = 40;
-    const scale = Math.min(maxWidth / properties.width, maxHeight / properties.height);
-    const width = properties.width * scale;
-    const height = properties.height * scale;
-    doc.addImage(footerImage, 'PNG', (pageWidth - width) / 2, 270, width, height, undefined, 'FAST');
+  for (let page = 1; page <= doc.getNumberOfPages(); page += 1) {
+    doc.setPage(page);
+    if (settings.footer_note && !footerImage) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 100, 100);
+      doc.text(settings.footer_note, pageWidth / 2, 290, { align: 'center', maxWidth: pageWidth - marginX * 2 });
+    }
+    if (footerImage) {
+      const properties = doc.getImageProperties(footerImage);
+      const maxWidth = pageWidth - marginX * 2;
+      const maxHeight = 40;
+      const scale = Math.min(maxWidth / properties.width, maxHeight / properties.height);
+      const width = properties.width * scale;
+      const height = properties.height * scale;
+      doc.addImage(footerImage, 'PNG', (pageWidth - width) / 2, 270, width, height, undefined, 'FAST');
+    }
   }
 
   return doc.output('blob');
