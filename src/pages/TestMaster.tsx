@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { methodsDb, testGroupsDb } from '../lib/db';
-import { ClipboardList, Plus, Save, Trash2, Search, ArrowUp, ArrowDown, Pencil, Copy, X, Check } from 'lucide-react';
+import { ClipboardList, Plus, Save, Trash2, Search, ArrowUp, ArrowDown, Pencil, Copy, X, Check, ShieldCheck } from 'lucide-react';
 
 interface Parameter {
   id: string;
@@ -39,6 +39,7 @@ interface TestGroup {
   container_type?: string;
   report_sequence?: number;
   is_active: boolean;
+  is_default: boolean;
   parameters: Parameter[];
 }
 
@@ -120,6 +121,7 @@ export default function TestMaster() {
       container_type: '',
       report_sequence: 0,
       is_active: true,
+      is_default: false,
       parameters: [emptyParam()],
     };
     setSelectedId(null);
@@ -221,6 +223,7 @@ export default function TestMaster() {
           container_type: draft.container_type || '',
           report_sequence: draft.report_sequence || 0,
           is_active: true,
+          is_default: draft.is_default,
         });
         await testGroupsDb.replaceParameters(
           created.id,
@@ -239,6 +242,7 @@ export default function TestMaster() {
           container_type: draft.container_type || '',
           report_sequence: draft.report_sequence || 0,
           is_active: draft.is_active,
+          is_default: draft.is_default,
         });
         await testGroupsDb.replaceParameters(
           draft.id,
@@ -255,6 +259,10 @@ export default function TestMaster() {
 
   async function handleDeleteGroup(group: TestGroup | null = draft) {
     if (!group || group.id.startsWith('new-') || !group.is_active) return;
+    if (group.is_default) {
+      setSaveError('This test group is marked Default and cannot be deleted.');
+      return;
+    }
     if (!window.confirm(`Delete "${group.display_name}" from Test Master? It will disappear from this list and new visits. Existing patient reports will remain safe.`)) return;
     setSaveError(null);
     try {
@@ -303,16 +311,22 @@ export default function TestMaster() {
               {!group.id.startsWith('new-') && (
                 <button
                   type="button"
-                  title="Delete test group"
+                  title={group.is_default ? 'Default test groups cannot be deleted' : 'Delete test group'}
                   aria-label={`Delete ${group.display_name}`}
                   onClick={() => {
                     selectGroup(group);
                     void handleDeleteGroup(group);
                   }}
-                  className={`mr-2 rounded p-1.5 ${selectedId === group.id ? 'text-white/80 hover:bg-white/20' : 'text-rose-500 hover:bg-rose-50'}`}
+                  disabled={group.is_default}
+                  className={`mr-2 rounded p-1.5 disabled:cursor-not-allowed disabled:opacity-50 ${selectedId === group.id ? 'text-white/80 hover:bg-white/20' : 'text-rose-500 hover:bg-rose-50'}`}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  {group.is_default ? <ShieldCheck className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                 </button>
+              )}
+              {group.is_default && (
+                <span className={`mr-2 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${selectedId === group.id ? 'bg-white/15 text-white' : 'bg-emerald-50 text-emerald-700'}`}>
+                  Default
+                </span>
               )}
             </div>
           ))}
@@ -346,6 +360,21 @@ export default function TestMaster() {
                 onChange={(e) => setDraft({ ...draft, report_title: e.target.value })}
               />
             </div>
+            <label className="flex items-center gap-2 self-end rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">
+              <input
+                type="checkbox"
+                checked={draft.is_default}
+                disabled={!draft.id.startsWith('new-') && draft.is_default}
+                onChange={(event) => setDraft({ ...draft, is_default: event.target.checked })}
+                className="accent-emerald-600"
+              />
+              Make this a protected default test group
+            </label>
+            {draft.is_default && (
+              <p className="col-span-2 self-end text-[11px] text-emerald-800 lg:col-span-4">
+                Once saved as Default, this group cannot be deleted or deactivated.
+              </p>
+            )}
             <div>
               <label className="text-xs font-semibold text-slate-500 uppercase">Display Group Name</label>
               <input
@@ -559,7 +588,7 @@ export default function TestMaster() {
               <code className="bg-slate-100 px-1 rounded">ID2</code>.
             </span>
             <div className="flex gap-2">
-              {!draft.id.startsWith('new-') && draft.is_active && (
+              {!draft.id.startsWith('new-') && draft.is_active && !draft.is_default && (
                 <button
                   type="button"
                   onClick={() => void handleDeleteGroup()}
@@ -567,6 +596,11 @@ export default function TestMaster() {
                 >
                   Delete Group
                 </button>
+              )}
+              {draft.is_default && (
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+                  <ShieldCheck className="h-3.5 w-3.5" /> Protected Default Group
+                </span>
               )}
               <button
                 type="button"

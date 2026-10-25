@@ -216,6 +216,7 @@ export interface TestGroup {
   container_type?: string;
   report_sequence?: number;
   is_active: boolean;
+  is_default: boolean;
   test_parameters?: TestParameter[];
 }
 
