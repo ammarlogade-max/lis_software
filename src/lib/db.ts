@@ -462,13 +462,14 @@ export const ordersDb = {
       .from('orders')
       .select(
         `id, lab_id, specimen_id, status, priority, created_at, collection_at, received_at, reporting_at, remarks,
-         patients(id, mrn, title, full_name, phone, email, gender, age_years),
-         doctor:doctors(salutation, name, degree, contact_no, email),
-         centre:collection_centres(name),
-         branch:branches(name),
-         order_test_groups(id, status, test_groups(id, display_name, report_title, department, method_interpretation,
-           test_parameters(id, name, unit, formula, decimal_format, is_bold,
-             normal_range_male, normal_range_female, normal_range_child_male, normal_range_child_female, sort_order)))`
+        fasting_status, discount_percent, payable, paid, due, payment_mode, patient_id, doctor_id, centre_id, branch_id,
+        patients(id, mrn, title, patient_type, full_name, phone, email, address, city, history, gender, age_years, age_months, age_days),
+        doctor:doctors(salutation, name, degree, contact_no, email),
+        centre:collection_centres(name),
+        branch:branches(name),
+        order_test_groups(id, test_group_id, status, test_groups(id, display_name, report_title, department, method_interpretation, rate,
+          test_parameters(id, name, unit, formula, decimal_format, is_bold,
+            normal_range_male, normal_range_female, normal_range_child_male, normal_range_child_female, sort_order)))`
       )
       .eq('id', orderId)
       .single();
@@ -499,9 +500,22 @@ export const ordersDb = {
       collection_at: (order as any).collection_at,
       received_at: (order as any).received_at,
       reporting_at: (order as any).reporting_at,
+      remarks: (order as any).remarks || '',
+      fasting_status: (order as any).fasting_status || 'Unspecified',
+      discount_percent: Number((order as any).discount_percent || 0),
+      payable: Number((order as any).payable || 0),
+      paid: Number((order as any).paid || 0),
+      due: Number((order as any).due || 0),
+      payment_mode: (order as any).payment_mode || 'cash',
+      patient_id: (order as any).patient_id,
+      doctor_id: (order as any).doctor_id,
+      centre_id: (order as any).centre_id,
+      branch_id: (order as any).branch_id,
       order_tests: ((order as any).order_test_groups || []).map((g: any) => ({
         id: g.id,
+        test_group_id: g.test_group_id,
         test_group_name: g.test_groups?.display_name || '',
+        rate: Number(g.test_groups?.rate || 0),
         department: g.test_groups?.department || '',
         method: g.test_groups?.method_interpretation || '',
         status: g.status,
@@ -516,10 +530,38 @@ export const ordersDb = {
             decimal_format: p.decimal_format,
             normal_range_male: p.normal_range_male,
             normal_range_female: p.normal_range_female,
+            normal_range_child_male: p.normal_range_child_male,
+            normal_range_child_female: p.normal_range_child_female,
             value: valueMap.get(`${g.id}:${p.id}`) ?? '',
           })),
       })),
     };
+  },
+
+  async updateVisit(
+    orderId: string,
+    patient: Omit<Patient, 'id' | 'mrn'>,
+    visit: {
+      specimen_id: string | null;
+      doctor_id: string | null;
+      centre_id: string | null;
+      collection_at: string | null;
+      received_at: string | null;
+      reporting_at: string | null;
+      remarks: string;
+      fasting_status: string;
+      priority: string;
+      discount_percent: number;
+    },
+    testGroupIds: string[],
+  ): Promise<void> {
+    const { error } = await supabase.rpc('update_visit_details', {
+      p_order_id: orderId,
+      p_patient: patient,
+      p_visit: visit,
+      p_test_group_ids: testGroupIds,
+    });
+    if (error) throw new Error(error.message);
   },
 
   // Saves every parameter's value for one test group in a single upsert,

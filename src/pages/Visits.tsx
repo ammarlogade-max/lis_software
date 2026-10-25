@@ -1,6 +1,15 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ordersDb, reportSettingsDb } from '../lib/db';
+import {
+  branchesDb,
+  centresDb,
+  doctorsDb,
+  ordersDb,
+  patientsDb,
+  reportSettingsDb,
+  testGroupsDb,
+} from '../lib/db';
+import type { Branch, CollectionCentre, Doctor, Patient, TestGroup } from '../lib/db';
 import { storageDb } from '../lib/db';
 import { supabase } from '../lib/supabaseClient';
 import { generateReportPdf } from '../lib/generateReportPdf';
@@ -23,6 +32,8 @@ import {
   Check,
   MessageCircle,
   Mail,
+  Pencil,
+  X,
 } from 'lucide-react';
 
 type Order = {
@@ -44,15 +55,34 @@ type Parameter = {
   decimal_format?: string | null;
   normal_range_male: string | null;
   normal_range_female: string | null;
+  normal_range_child_male: string | null;
+  normal_range_child_female: string | null;
   value: string | null;
 };
 
 type OrderTestDetail = {
   id: string;
+  test_group_id: string;
   test_group_name: string;
+  rate: number;
   start_new_page?: boolean;
   status: string;
   parameters: Parameter[];
+};
+
+type VisitEditDraft = {
+  patient: Omit<Patient, 'id' | 'mrn'>;
+  specimen_id: string;
+  doctor_id: string;
+  centre_id: string;
+  collection_at: string;
+  received_at: string;
+  reporting_at: string;
+  remarks: string;
+  fasting_status: string;
+  priority: string;
+  discount_percent: number;
+  test_group_ids: string[];
 };
 
 type OrderDetail = {
@@ -64,10 +94,37 @@ type OrderDetail = {
   patient_email: string | null;
   patient_gender: string | null;
   patient_age_years: number | null;
+  patient: Patient;
   status: string;
   priority?: string;
+  doctor_id: string | null;
+  centre_id: string | null;
+  branch_id: string | null;
+  collection_at: string | null;
+  received_at: string | null;
+  reporting_at: string | null;
+  remarks: string;
+  fasting_status: string;
+  discount_percent: number;
+  payable: number;
+  paid: number;
+  due: number;
   order_tests: OrderTestDetail[];
 };
+
+function toDateTimeLocal(value: string | null | undefined): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function toIsoOrNull(value: string): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
 
 function checkAbnormality(val: string | undefined | null, normalRange: string | null): 'normal' | 'low' | 'high' | 'none' {
   if (!val || !normalRange) return 'none';
@@ -120,6 +177,16 @@ export default function Visits() {
   const [printingLabel, setPrintingLabel] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [resultError, setResultError] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<VisitEditDraft | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSuccess, setEditSuccess] = useState<string | null>(null);
+  const [referenceError, setReferenceError] = useState<string | null>(null);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [centres, setCentres] = useState<CollectionCentre[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [availableTests, setAvailableTests] = useState<TestGroup[]>([]);
 
   async function loadOrders() {
     const data = await ordersDb.list();
@@ -131,6 +198,19 @@ export default function Visits() {
 
   useEffect(() => {
     loadOrders();
+    Promise.all([
+      doctorsDb.list(),
+      centresDb.list(),
+      branchesDb.list(),
+      testGroupsDb.listActive(),
+    ]).then(([doctorList, centreList, branchList, testList]) => {
+      setDoctors(doctorList);
+      setCentres(centreList);
+      setBranches(branchList);
+      setAvailableTests(testList);
+    }).catch((error) => {
+      setReferenceError(error instanceof Error ? error.message : 'Could not load visit editor options.');
+    });
   }, []);
 
   const filteredOrders = useMemo(() => {
@@ -151,6 +231,20 @@ export default function Visits() {
     });
   }, [orders, searchQuery, statusFilter]);
 
+  const activeTestsById = useMemo(
+    () => new Map(availableTests.map((test) => [test.id, test])),
+    [availableTests],
+  );
+
+  const editSubtotal = useMemo(() => {
+    if (!editDraft) return 0;
+    return editDraft.test_group_ids.reduce((total, testGroupId) => {
+      const listedTest = activeTestsById.get(testGroupId);
+      const existingTest = detail?.order_tests.find((test) => test.test_group_id === testGroupId);
+      return total + Number(listedTest?.rate ?? existingTest?.rate ?? 0);
+    }, 0);
+  }, [activeTestsById, detail, editDraft]);
+
   async function openOrder(id: string) {
     setActiveOrderId(id);
     setDetailError(null);
@@ -167,8 +261,21 @@ export default function Visits() {
         patient_email: raw.patient?.email || null,
         patient_gender: raw.patient?.gender || null,
         patient_age_years: raw.patient?.age_years ?? null,
+        patient: raw.patient as Patient,
         status: raw.status,
         priority: raw.priority,
+        doctor_id: raw.doctor_id,
+        centre_id: raw.centre_id,
+        branch_id: raw.branch_id,
+        collection_at: raw.collection_at,
+        received_at: raw.received_at,
+        reporting_at: raw.reporting_at,
+        remarks: raw.remarks || '',
+        fasting_status: raw.fasting_status || 'Unspecified',
+        discount_percent: raw.discount_percent || 0,
+        payable: raw.payable || 0,
+        paid: raw.paid || 0,
+        due: raw.due || 0,
         order_tests: raw.order_tests as OrderTestDetail[],
       };
       setDetail(d);
@@ -198,6 +305,115 @@ export default function Visits() {
       await loadOrders();
     } finally {
       setCollecting(false);
+    }
+  }
+
+  function startVisitEdit() {
+    if (!detail) return;
+    setEditError(null);
+    setEditSuccess(null);
+    setEditDraft({
+      patient: {
+        title: detail.patient.title || 'Mr.',
+        patient_type: detail.patient.patient_type || 'Regular',
+        full_name: detail.patient.full_name,
+        gender: detail.patient.gender,
+        age_years: detail.patient.age_years,
+        age_months: detail.patient.age_months || 0,
+        age_days: detail.patient.age_days || 0,
+        phone: detail.patient.phone,
+        email: detail.patient.email,
+        address: detail.patient.address,
+        city: detail.patient.city,
+        history: detail.patient.history,
+      },
+      specimen_id: detail.specimen_id || '',
+      doctor_id: detail.doctor_id || '',
+      centre_id: detail.centre_id || '',
+      collection_at: toDateTimeLocal(detail.collection_at),
+      received_at: toDateTimeLocal(detail.received_at),
+      reporting_at: toDateTimeLocal(detail.reporting_at),
+      remarks: detail.remarks,
+      fasting_status: detail.fasting_status,
+      priority: detail.priority || 'routine',
+      discount_percent: detail.discount_percent,
+      test_group_ids: detail.order_tests.map((test) => test.test_group_id),
+    });
+    setEditOpen(true);
+  }
+
+  function updateEditPatient<K extends keyof VisitEditDraft['patient']>(
+    field: K,
+    value: VisitEditDraft['patient'][K],
+  ) {
+    setEditDraft((current) => current
+      ? { ...current, patient: { ...current.patient, [field]: value } }
+      : current);
+  }
+
+  function changeSelectedTest(testGroupId: string, selected: boolean) {
+    if (!editDraft) return;
+    if (!selected) {
+      const currentGroup = detail?.order_tests.find((test) => test.test_group_id === testGroupId);
+      const savedResultCount = currentGroup?.parameters.filter((parameter) => parameter.value?.trim()).length || 0;
+      if (savedResultCount > 0 && !window.confirm(
+        `This test has ${savedResultCount} saved result${savedResultCount === 1 ? '' : 's'}. Removing it will permanently remove those results from this visit. Continue?`,
+      )) return;
+    }
+    setEditDraft({
+      ...editDraft,
+      test_group_ids: selected
+        ? [...editDraft.test_group_ids, testGroupId]
+        : editDraft.test_group_ids.filter((id) => id !== testGroupId),
+    });
+    setEditError(null);
+  }
+
+  async function saveVisitEdit() {
+    if (!detail || !editDraft) return;
+    if (!editDraft.patient.full_name.trim()) {
+      setEditError('Patient name is required.');
+      return;
+    }
+    if (editDraft.test_group_ids.length === 0) {
+      setEditError('Keep at least one test on the visit.');
+      return;
+    }
+    if (editDraft.discount_percent < 0 || editDraft.discount_percent > 100) {
+      setEditError('Discount must be between 0 and 100 percent.');
+      return;
+    }
+
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      await ordersDb.updateVisit(
+        detail.id,
+        editDraft.patient,
+        {
+          specimen_id: editDraft.specimen_id,
+          doctor_id: editDraft.doctor_id || null,
+          centre_id: editDraft.centre_id || null,
+          collection_at: toIsoOrNull(editDraft.collection_at),
+          received_at: toIsoOrNull(editDraft.received_at),
+          reporting_at: toIsoOrNull(editDraft.reporting_at),
+          remarks: editDraft.remarks,
+          fasting_status: editDraft.fasting_status,
+          priority: editDraft.priority,
+          discount_percent: editDraft.discount_percent,
+        },
+        editDraft.test_group_ids,
+      );
+      setEditOpen(false);
+      setEditDraft(null);
+      setEditSuccess('Patient and visit details saved.');
+      window.setTimeout(() => setEditSuccess(null), 5000);
+      await openOrder(detail.id);
+      await loadOrders();
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : 'Could not save visit changes.');
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -532,6 +748,15 @@ export default function Visits() {
 
               {/* Action Buttons Toolbar */}
               <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  id="edit-visit-details-btn"
+                  onClick={startVisitEdit}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-xs transition"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Edit Visit
+                </button>
                 {detail.status !== 'sample_collected' && detail.status !== 'completed' && (
                   <button
                     id="collect-specimen-btn"
@@ -606,6 +831,11 @@ export default function Visits() {
                 {shareError || shareSuccess}
               </div>
             )}
+            {editSuccess && (
+              <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                {editSuccess}
+              </div>
+            )}
             {resultError && (
               <div className="text-xs font-medium px-3 py-2 rounded-lg border text-rose-700 bg-rose-50 border-rose-200">
                 Could not save results: {resultError}
@@ -652,7 +882,14 @@ export default function Visits() {
                           }
 
                           const currentValue = draftValues[p.id] ?? '';
-                          const normalRange = p.normal_range_male || p.normal_range_female || '';
+                          const patientIsChild = (detail.patient.age_years ?? 0) < 18;
+                          const normalRange = patientIsChild
+                            ? detail.patient.gender === 'Female'
+                              ? p.normal_range_child_female || p.normal_range_female || ''
+                              : p.normal_range_child_male || p.normal_range_male || ''
+                            : detail.patient.gender === 'Female'
+                              ? p.normal_range_female || p.normal_range_male || ''
+                              : p.normal_range_male || p.normal_range_female || '';
                           const flag = checkAbnormality(currentValue, normalRange);
 
                           return (
@@ -736,6 +973,170 @@ export default function Visits() {
           </div>
         )}
       </div>
+
+      {editOpen && editDraft && detail && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-3 sm:p-6">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="visit-edit-title"
+            className="mx-auto my-2 max-w-5xl rounded-xl border border-slate-200 bg-white shadow-2xl"
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-xl border-b border-slate-200 bg-white px-5 py-4">
+              <div>
+                <h2 id="visit-edit-title" className="text-base font-bold text-slate-900">Edit Patient and Visit</h2>
+                <p className="mt-0.5 text-xs text-slate-500">{detail.lab_id} · MRN {detail.patient.mrn} · {detail.status.replace(/_/g, ' ')}</p>
+              </div>
+              <button type="button" onClick={() => setEditOpen(false)} aria-label="Close editor" className="rounded-md p-2 text-slate-500 hover:bg-slate-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid gap-5 p-5 lg:grid-cols-2">
+              <fieldset className="space-y-3 rounded-lg border border-slate-200 p-4">
+                <legend className="px-1 text-sm font-bold text-slate-800">Patient Information</legend>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-semibold text-slate-600">Title
+                    <input value={editDraft.patient.title} onChange={(event) => updateEditPatient('title', event.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm" />
+                  </label>
+                  <label className="text-xs font-semibold text-slate-600">Patient Type
+                    <input value={editDraft.patient.patient_type} onChange={(event) => updateEditPatient('patient_type', event.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm" />
+                  </label>
+                  <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Full Name
+                    <input required value={editDraft.patient.full_name} onChange={(event) => updateEditPatient('full_name', event.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm" />
+                  </label>
+                  <label className="text-xs font-semibold text-slate-600">Gender
+                    <select value={editDraft.patient.gender} onChange={(event) => updateEditPatient('gender', event.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm">
+                      {['Male', 'Female', 'Other'].map((gender) => <option key={gender}>{gender}</option>)}
+                    </select>
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <label className="text-xs font-semibold text-slate-600">Years
+                      <input type="number" min="0" value={editDraft.patient.age_years ?? ''} onChange={(event) => updateEditPatient('age_years', event.target.value === '' ? null : Number(event.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm" />
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">Months
+                      <input type="number" min="0" max="11" value={editDraft.patient.age_months} onChange={(event) => updateEditPatient('age_months', Number(event.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm" />
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">Days
+                      <input type="number" min="0" max="31" value={editDraft.patient.age_days} onChange={(event) => updateEditPatient('age_days', Number(event.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm" />
+                    </label>
+                  </div>
+                  <label className="text-xs font-semibold text-slate-600">Phone
+                    <input type="tel" value={editDraft.patient.phone || ''} onChange={(event) => updateEditPatient('phone', event.target.value || null)} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm" />
+                  </label>
+                  <label className="text-xs font-semibold text-slate-600">Email
+                    <input type="email" value={editDraft.patient.email || ''} onChange={(event) => updateEditPatient('email', event.target.value || null)} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm" />
+                  </label>
+                  <label className="text-xs font-semibold text-slate-600">City
+                    <input value={editDraft.patient.city || ''} onChange={(event) => updateEditPatient('city', event.target.value || null)} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm" />
+                  </label>
+                  <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Address
+                    <textarea rows={2} value={editDraft.patient.address || ''} onChange={(event) => updateEditPatient('address', event.target.value || null)} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm" />
+                  </label>
+                  <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Patient History / Notes
+                    <textarea rows={3} value={editDraft.patient.history || ''} onChange={(event) => updateEditPatient('history', event.target.value || null)} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm" />
+                  </label>
+                </div>
+              </fieldset>
+
+              <div className="space-y-4">
+                <fieldset className="rounded-lg border border-slate-200 p-4">
+                  <legend className="px-1 text-sm font-bold text-slate-800">Visit Details</legend>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label className="text-xs font-semibold text-slate-600">Specimen ID
+                      <input value={editDraft.specimen_id} onChange={(event) => setEditDraft({ ...editDraft, specimen_id: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm" />
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">Priority
+                      <select value={editDraft.priority} onChange={(event) => setEditDraft({ ...editDraft, priority: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm">
+                        <option value="routine">Routine</option><option value="stat">STAT / Emergency</option>
+                      </select>
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">Referring Doctor
+                      <select value={editDraft.doctor_id} onChange={(event) => setEditDraft({ ...editDraft, doctor_id: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm">
+                        <option value="">Self / Walk-in</option>
+                        {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.salutation} {doctor.name}{doctor.degree ? ` (${doctor.degree})` : ''}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">Collection Centre
+                      <select value={editDraft.centre_id} onChange={(event) => setEditDraft({ ...editDraft, centre_id: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm">
+                        <option value="">Main Laboratory</option>
+                        {centres.map((centre) => <option key={centre.id} value={centre.id}>{centre.name}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">Collection Date / Time
+                      <input type="datetime-local" value={editDraft.collection_at} onChange={(event) => setEditDraft({ ...editDraft, collection_at: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm" />
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">Received Date / Time
+                      <input type="datetime-local" value={editDraft.received_at} onChange={(event) => setEditDraft({ ...editDraft, received_at: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm" />
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">Reporting Date / Time
+                      <input type="datetime-local" value={editDraft.reporting_at} onChange={(event) => setEditDraft({ ...editDraft, reporting_at: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm" />
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">Fasting Status
+                      <select value={editDraft.fasting_status} onChange={(event) => setEditDraft({ ...editDraft, fasting_status: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm">
+                        {[...new Set(['Unspecified', 'Fasting 10-12 hrs', 'Post-Prandial (PP 2 hrs)', 'Random / Non-Fasting', editDraft.fasting_status])].map((status) => <option key={status}>{status}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">Discount (%)
+                      <input type="number" min="0" max="100" step="0.01" value={editDraft.discount_percent} onChange={(event) => setEditDraft({ ...editDraft, discount_percent: Number(event.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm" />
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Visit Remarks
+                      <textarea rows={2} value={editDraft.remarks} onChange={(event) => setEditDraft({ ...editDraft, remarks: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm" />
+                    </label>
+                  </div>
+                  <p className="mt-3 rounded-md bg-slate-50 p-2 text-[11px] text-slate-600">
+                    Branch and payment history are kept unchanged. Test edits recalculate payable using current test rates and the selected discount; recorded payments are preserved.
+                  </p>
+                </fieldset>
+              </div>
+
+              <fieldset className="rounded-lg border border-slate-200 p-4 lg:col-span-2">
+                <legend className="px-1 text-sm font-bold text-slate-800">Tests on This Visit</legend>
+                {referenceError && <p role="alert" className="mb-2 text-xs text-rose-700">{referenceError}</p>}
+                <div className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+                  {detail.order_tests
+                    .filter((test) => !activeTestsById.has(test.test_group_id))
+                    .map((test) => (
+                      <label key={test.test_group_id} className="flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50/50 px-3 py-2 text-xs">
+                        <span><span className="font-semibold">{test.test_group_name}</span><span className="ml-1 text-amber-700">· inactive test</span></span>
+                        <input type="checkbox" checked={editDraft.test_group_ids.includes(test.test_group_id)} onChange={(event) => changeSelectedTest(test.test_group_id, event.target.checked)} />
+                      </label>
+                    ))}
+                  {availableTests.map((test) => (
+                    <label key={test.id} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2 text-xs hover:bg-slate-50">
+                      <span className="min-w-0"><span className="font-semibold">{test.display_name}</span><span className="ml-2 text-slate-500">Rs. {Number(test.rate).toFixed(2)}</span></span>
+                      <input type="checkbox" checked={editDraft.test_group_ids.includes(test.id)} onChange={(event) => changeSelectedTest(test.id, event.target.checked)} />
+                    </label>
+                  ))}
+                  {availableTests.length === 0 && detail.order_tests.length === 0 && (
+                    <p className="text-xs text-slate-500">No active tests are available.</p>
+                  )}
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs">
+                  <span>{editDraft.test_group_ids.length} test(s) selected</span>
+                  <span className="font-semibold">Subtotal Rs. {editSubtotal.toFixed(2)} · Payable after discount Rs. {(editSubtotal * (100 - editDraft.discount_percent) / 100).toFixed(2)}</span>
+                </div>
+                <p className="mt-2 text-[11px] text-slate-500">
+                  Removing a test with saved results requires confirmation and deletes those results from this visit.
+                </p>
+              </fieldset>
+            </div>
+
+            {editError && <p role="alert" className="mx-5 mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{editError}</p>}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4">
+              <p className="text-[11px] text-slate-500">Patient and visit changes save together. Your result values are retained for tests that remain selected.</p>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setEditOpen(false)} disabled={editSaving} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
+                  <X className="h-3.5 w-3.5" /> Cancel
+                </button>
+                <button type="button" onClick={saveVisitEdit} disabled={editSaving} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">
+                  <Save className="h-3.5 w-3.5" /> {editSaving ? 'Saving…' : 'Save Visit Changes'}
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
